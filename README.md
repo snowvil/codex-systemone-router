@@ -21,6 +21,83 @@ telemetry service, dashboard, hosted decision service, OpenAI API proxy, or
 automatic failure escalation in v0.1. The router never executes commands
 returned by a backend and does not bind a server port.
 
+## Quick start: connect it to Codex
+
+This repository is currently private and the package has not been published to
+npm. The commands below require access to the repository, Node.js 22 or newer,
+and a local Codex installation with subagents available. Ollaya and
+`kev:latest` are required for live decisions; without them, the router returns
+its safe fallback.
+
+1. Install the executable from source:
+
+   ```bash
+   git clone --branch codex/v0.1-second-pass --single-branch \
+     https://github.com/snowvil/codex-systemone-router.git
+   cd codex-systemone-router
+   npm ci
+   npm run build
+   npm link
+   command -v codex-systemone-router
+   codex-systemone-router --help
+   ```
+
+   `npm link` makes the command available through npm's global executable
+   directory. The `command -v` line must resolve in the environment that
+   launches Codex. If it does not, add that directory to `PATH` and start a new
+   Codex process. An already running desktop app may retain its old `PATH`.
+
+2. In the **project where you use Codex**, install the managed instructions:
+
+   ```bash
+   cd /path/to/your-project
+   codex-systemone-router install --dry-run
+   codex-systemone-router install
+   codex-systemone-router doctor --agents-path AGENTS.md
+   codex-systemone-router route --json \
+     "Review the parser error handling and report two concrete risks."
+   ```
+
+   `install` creates or updates the project's `AGENTS.md` while preserving its
+   other content. `doctor` checks the file, configuration, Node.js, and a real
+   backend response. If Ollaya is unavailable, `doctor` exits with status 1;
+   `route` still emits JSON with `fallback: true` and a safe target. A
+   successful decision has `fallback: false`.
+
+3. Start a **new Codex session** from that project (`codex` in a terminal, or
+   open the project in a local Codex app/IDE) and give it an independently
+   delegatable task, for example:
+
+   > Use one subagent to review the parser's error handling. Report the
+   > router-selected model and reasoning effort, whether it used fallback, and
+   > the concrete risks the subagent found.
+
+   Inspect the session for `codex-systemone-router route --stdin --json`
+   followed by a subagent spawn using the returned settings and the same task
+   description. The installed `AGENTS.md` asks Codex to follow this sequence;
+   it is guidance, not a technical hook into the spawn tool. Codex must be
+   able to run the executable and support the selected model and reasoning
+   effort. See the [Codex AGENTS.md guide](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+   and [subagents guide](https://learn.chatgpt.com/docs/agent-configuration/subagents).
+
+To apply the guidance to every local Codex project, install it in the Codex
+home file instead of each repository:
+
+```bash
+mkdir -p "$HOME/.codex"
+codex-systemone-router install --path "$HOME/.codex/AGENTS.md" --dry-run
+codex-systemone-router install --path "$HOME/.codex/AGENTS.md"
+```
+
+If `CODEX_HOME` is set, use that directory in place of `$HOME/.codex`. Codex
+loads `AGENTS.override.md` before `AGENTS.md` in the same directory. If either
+the project or Codex home already has an override file, install into that file
+with `--path` and pass the same path to `doctor --agents-path`; otherwise Codex
+will read the override instead of the managed `AGENTS.md`. Project guidance
+is read alongside global guidance, with files nearer the working directory
+taking precedence. Install in one scope unless you deliberately want the
+instructions in both.
+
 ## Architecture
 
 ```text
@@ -63,31 +140,6 @@ Ollaya and Kev are optional for a smoke test because routing degrades to a
 configured capable fallback when the backend is unavailable. That fallback is
 not evidence that the local decision model ran.
 
-## Install and build
-
-```bash
-npm install
-npm run build
-```
-
-The package exposes the `codex-systemone-router` executable after installation
-(or with `npm link` from a checkout):
-
-```bash
-npm link
-codex-systemone-router --help
-```
-
-The Codex process must inherit the npm global executable directory on `PATH`.
-After `npm link`, verify `command -v codex-systemone-router` in the same shell
-you use to launch Codex. Restart Codex after changing `PATH` or linking the
-package; a desktop app already open may keep its earlier environment.
-
-The command accepts one positional task for `route`; `--stdin` reads the task
-from standard input instead. Route-level overrides are `--config PATH`,
-`--backend-url URL`, `--backend-model MODEL`, `--timeout-ms MS`,
-`--fallback-model MODEL`, and `--fallback-reasoning-effort low|medium|high|xhigh`.
-
 ## Route a task
 
 Pass a complete, self-contained task description. Do not pass placeholders such
@@ -104,6 +156,11 @@ codex-systemone-router route --json \
 printf '%s\n' "Trace the cache invalidation race across the worker and API." \
   | codex-systemone-router route --stdin --json
 ```
+
+The command accepts one positional task; `--stdin` reads the task from
+standard input instead. Route-level overrides are `--config PATH`,
+`--backend-url URL`, `--backend-model MODEL`, `--timeout-ms MS`,
+`--fallback-model MODEL`, and `--fallback-reasoning-effort low|medium|high|xhigh`.
 
 JSON output contains the policy-selected difficulty, ordinal score, target model and
 reasoning effort, the normalized probabilities, backend metadata, latency, and
@@ -178,12 +235,14 @@ configured decision backend; it does not send it to an analytics service.
 
 Install the managed block in the relevant Codex instruction file. `--path`
 selects a file and defaults to `AGENTS.md` in the current directory. Preview
-first when working in an existing repository:
+first when working in an existing repository, and preview removal before
+uninstalling:
 
 ```bash
 codex-systemone-router install --dry-run
 codex-systemone-router install
-codex-systemone-router uninstall --path path/to/AGENTS.md --dry-run
+codex-systemone-router uninstall --dry-run
+codex-systemone-router uninstall
 ```
 
 Installation is idempotent, preserves unrelated content, and uses the markers
@@ -204,6 +263,8 @@ terminator remains. Avoid concurrent edits during installation.
 For custom configuration, export `CODEX_SYSTEMONE_ROUTER_CONFIG` to an absolute
 path in the shell that starts Codex, so every routed subtask uses it. An earlier
 one-off `route --config ...` does not persist configuration for installed guidance.
+For a desktop app, the variable must be in the app process's environment;
+exporting it in an unrelated terminal does not change an already running app.
 
 After installation, start a fresh Codex session. Observe the route invocation,
 its returned settings, and the subsequent spawn with the **identical** task.
