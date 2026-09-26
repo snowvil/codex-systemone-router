@@ -7,6 +7,7 @@ backend:
   timeout_ms: 2000
 
 policy:
+  strategy: conservative
   thresholds:
     medium: 0.75
     high: 1.75

@@ -172,3 +172,32 @@ AGENTS instructions cannot guarantee interception or enforce every spawn.
 
 Preview removal with codex-systemone-router uninstall --dry-run; uninstall
 removes only the managed block. Backups are retained. Avoid simultaneous edits.
+
+## Develop-based routing reliability feature verification (2026-09-26)
+
+This run starts from `origin/develop` `0fbac7f974353eed4a02981a64ecf3bb5f908344` on `feature/routing-reliability`. The result is not integrated. Detailed per-issue state, replay metrics, H05 case hashes, and resume conditions are in [`docs/superpowers/plans/2026-09-26-routing-reliability.md`](docs/superpowers/plans/2026-09-26-routing-reliability.md). The supplied prompt/evidence files remain unmodified and untracked.
+
+### Checks
+
+- `npm test`: 93 passed, 0 failed, 0 skipped. This includes invalid explicit configuration, unreadable config path, empty stdout/no backend request, backend fallback, policy edge cases, template parity, and fixed replay tests.
+- `npm run typecheck`, `npm run build`, `npm run replay`, and `git diff --check`: passed.
+- Scoped Prettier check over changed project files: passed. The repository-wide `npm run format:check` exits 1 only for the three user-provided untracked inputs `README_START_HERE.md`, `WORK_PROMPT.md`, and `evidence/replay-baseline.json`; these files were not rewritten. The clean-checkout CI command remains `npm run format:check`.
+- `npm pack --dry-run --json`: version `0.1.1`, 62 package files; includes the existing `CHANGELOG.md`, compiled CLI/library, template, config example, README, and implementation/contribution docs.
+- `npm run pack:smoke`: passed for `0.1.1`; tarball SHA-256 `dfdef86470769ac75f8c3497c0a788cffd4e3783202f88592eee18c91f0fab67`, 62 files. The script installs from its local tarball into a temporary local prefix, not globally.
+- Package and lockfile versions remain `0.1.1`. No release, tag, publish, or push to `main`/`develop` was performed. Hosted CI is pending the develop-target PR.
+
+### Replay and interpretation
+
+The source CSV SHA-256 is `44fadbdeb47912333a66ed704c68fe8bd9fd1e276d1a2eb8d3c355281fdc1659`; the checked-in numeric fixture matches. On the same 100 rows, recorded choice scored 61 exact/100 within one, with 28 under, 11 over, and no severe under. Legacy ordinal scored 49 exact/99 within one, with 42 under, 9 over, and 1 severe under; it caused 21 downgrades from recorded choice. The conservative candidate scored 63 exact/100 within one, with 25 under, 12 over, no severe under, and no policy-induced downgrade. Probability argmax matched recorded choice on all rows. The candidate preserved ID 56 as high; the legacy bucket lowered it to medium.
+
+These are comparisons against heuristic manual labels on a fixed dataset whose task text is absent. They do not measure Codex task success, generalization, or cost reduction. Historical backend `eval_ms` averaged 194.068 ms; local replay measured parse/analysis and varied across runs (1.950 ms and 16.134 ms), so those timings are not comparable.
+
+### H05 evidence boundary
+
+The installed local package produced two non-fallback `kev:latest` router decisions: Task B selected `gpt-6-luna/medium`, and a repeat of Task A selected `gpt-6-luna/low`. A first Task A attempt returned fallback `gpt-6-sol/high` after timeout and is not counted as route success. All three attempts are `router_only`; no spawn request or child was observed. The task hashes and artifact hash are recorded in the plan.
+
+The fresh-parent `codex exec --ephemeral` attempt stopped before session startup because Codex CLI `0.147.0` rejected the existing local user configuration (`invalid type: map, expected a boolean in features`). No user configuration/authentication was changed. H05 remains blocked; child target application, child runtime model/effort, and independent task assertions are unknown. Resume only with a fresh parent session that successfully starts under the existing configuration and can collect observable runtime metadata.
+
+### CI and release handoff
+
+The Ubuntu and macOS CI jobs now both run `git diff --check`; the macOS job records OS/architecture and remains a configured-but-unrun hosted check. Migration notes are in [`docs/migration/routing-reliability.md`](docs/migration/routing-reliability.md). Release review owns the conservative-default decision, additive JSON/doctor contract review, exit-code migration guidance, Unreleased changelog promotion, synchronized version update, and MINOR-version assessment under the repository's 0.x policy.

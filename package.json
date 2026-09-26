@@ -33,8 +33,10 @@
     "typecheck": "tsc -p tsconfig.check.json",
     "test": "tsx --test tests/*.test.ts",
     "benchmark": "tsx benchmark/report.ts",
+    "replay": "tsx benchmark/replay.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "pack:smoke": "node scripts/pack-smoke.mjs"
   },
   "dependencies": {
     "yaml": "^2.8.1"

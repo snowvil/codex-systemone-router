@@ -86,6 +86,7 @@ describe("deterministic routing policy", () => {
       { model: "gpt-6-astra", reasoning_effort: "xhigh" },
       { model: "gpt-6-sol", reasoning_effort: "high" },
     ]);
+    assert.equal(config.policy.strategy, "conservative");
   });
 
   it("uses lower-bound thresholds and keeps exact boundaries stable", () => {
@@ -107,6 +108,24 @@ describe("deterministic routing policy", () => {
     assert.equal(result.target.model, "gpt-6-sol");
     assert.equal(result.fallback, false);
     assert.equal(result.score, 2.1);
+  });
+
+  it("can reach the configured xhigh target on a synthetic one-hot decision", () => {
+    const result = routeDecision(
+      {
+        choice: "xhigh",
+        probabilities: { low: 0, medium: 0, high: 0, xhigh: 1 },
+        score: 3,
+        backend: "test",
+      },
+      cloneDefaultConfig(),
+    );
+
+    assert.equal(result.difficulty, "xhigh");
+    assert.deepEqual(result.target, {
+      model: "gpt-6-astra",
+      reasoning_effort: "xhigh",
+    });
   });
 
   it("uses the configured capable fallback and reason", () => {
@@ -138,6 +157,7 @@ describe("configuration precedence and validation", () => {
         "  url: http://config.example.test/api/decide",
         "  timeout_ms: 1500",
         "policy:",
+        "  strategy: ordinal",
         "  thresholds:",
         "    medium: 0.6",
         "  fallback:",
@@ -153,17 +173,19 @@ describe("configuration precedence and validation", () => {
           "http://env.example.test/api/decide",
         CODEX_SYSTEMONE_ROUTER_BACKEND_TIMEOUT_MS: "1750",
         CODEX_SYSTEMONE_ROUTER_POLICY_THRESHOLDS_MEDIUM: "0.7",
+        CODEX_SYSTEMONE_ROUTER_POLICY_STRATEGY: "conservative",
         CODEX_SYSTEMONE_ROUTER_POLICY_FALLBACK_MODEL: "env-fallback",
       },
       overrides: {
         backend: { timeout_ms: 2200 },
-        policy: { fallback: { model: "cli-fallback" } },
+        policy: { strategy: "argmax", fallback: { model: "cli-fallback" } },
       },
     });
 
     assert.equal(config.backend.url, "http://env.example.test/api/decide");
     assert.equal(config.backend.timeout_ms, 2200);
     assert.equal(config.policy.thresholds.medium, 0.7);
+    assert.equal(config.policy.strategy, "argmax");
     assert.equal(config.policy.fallback.model, "cli-fallback");
   });
 
@@ -191,6 +213,13 @@ describe("configuration precedence and validation", () => {
           env: { CODEX_SYSTEMONE_ROUTER_BACKEND_TIMEOUT_MS: "not-a-number" },
         }),
       (error: unknown) => error instanceof ConfigValidationError,
+    );
+    assert.throws(
+      () =>
+        loadConfig({
+          env: { CODEX_SYSTEMONE_ROUTER_POLICY_STRATEGY: "guess" },
+        }),
+      /policy.strategy must be conservative, ordinal, or argmax/,
     );
   });
 });
@@ -265,4 +294,106 @@ it("merges a model-only route override while retaining the default effort", () =
     model: "custom-low",
     reasoning_effort: "low",
   });
+});
+
+it("does not downgrade a backend-declared high choice from the lower ordinal score", () => {
+  const result = routeDecision(
+    {
+      choice: "high",
+      probabilities: {
+        low: 0.1278,
+        medium: 0.3565,
+        high: 0.3689,
+        xhigh: 0.1468,
+      },
+      score: 1.5347,
+      backend: "replay",
+    },
+    cloneDefaultConfig(),
+  );
+
+  assert.equal(result.difficulty, "high");
+  assert.equal(result.target.model, "gpt-6-sol");
+  assert.equal(result.score, 1.5347);
+});
+
+it("does not downgrade a backend-declared xhigh choice when the mean is lower", () => {
+  const result = routeDecision(
+    {
+      choice: "xhigh",
+      probabilities: { low: 0, medium: 0.9, high: 0.09, xhigh: 0.01 },
+      score: 1.11,
+      backend: "test",
+    },
+    cloneDefaultConfig(),
+  );
+
+  assert.equal(result.difficulty, "xhigh");
+  assert.equal(result.probabilityArgmax, "medium");
+  assert.equal(result.choiceArgmaxDisagreement, true);
+});
+
+it("retains the historical ordinal policy as an explicit configuration", () => {
+  const directory = mkdtempSync(join(tmpdir(), "router-policy-strategy-"));
+  const path = join(directory, "router.yaml");
+  writeFileSync(path, "policy:\n  strategy: ordinal\n", "utf8");
+  const result = routeDecision(
+    decision({ low: 0.1278, medium: 0.3565, high: 0.3689, xhigh: 0.1468 }),
+    loadConfig({ configPath: path, env: {} }),
+  );
+
+  assert.equal(result.difficulty, "medium");
+});
+
+it("allows probability argmax as an explicit environment-selected policy", () => {
+  const config = loadConfig({
+    env: { CODEX_SYSTEMONE_ROUTER_POLICY_STRATEGY: "argmax" },
+  });
+  const result = routeDecision(
+    {
+      choice: "low",
+      probabilities: { low: 0.4, medium: 0.35, high: 0.25, xhigh: 0 },
+      score: 0.85,
+      backend: "test",
+    },
+    config,
+  );
+
+  assert.equal(result.difficulty, "low");
+  assert.equal(result.policy, "argmax");
+});
+
+it("reports choice and argmax disagreement while preserving the default choice floor", () => {
+  const result = routeDecision(
+    {
+      choice: "high",
+      probabilities: { low: 0.1, medium: 0.6, high: 0.2, xhigh: 0.1 },
+      score: 1.3,
+      backend: "test",
+    },
+    cloneDefaultConfig(),
+  );
+
+  assert.equal(result.difficulty, "high");
+  assert.equal(result.declaredChoice, "high");
+  assert.equal(result.probabilityArgmax, "medium");
+  assert.equal(result.choiceArgmaxDisagreement, true);
+});
+
+it("breaks probability argmax ties toward the lower ordinal difficulty", () => {
+  const config = loadConfig({
+    env: { CODEX_SYSTEMONE_ROUTER_POLICY_STRATEGY: "argmax" },
+  });
+  const result = routeDecision(
+    {
+      choice: "high",
+      probabilities: { low: 0.5, medium: 0, high: 0.5, xhigh: 0 },
+      score: 1,
+      backend: "test",
+    },
+    config,
+  );
+
+  assert.equal(result.difficulty, "low");
+  assert.equal(result.probabilityArgmax, "low");
 });

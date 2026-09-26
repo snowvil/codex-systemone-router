@@ -1,10 +1,52 @@
 import type { RouterConfig } from "../config/types.js";
 import { normalizeProbabilities, ordinalScore } from "./score.js";
-import type { Difficulty, RoutingPolicy, RoutingResult } from "./types.js";
+import { POLICY_STRATEGIES } from "./types.js";
+import type {
+  Difficulty,
+  PolicyStrategy,
+  RoutingPolicy,
+  RoutingResult,
+} from "./types.js";
 import type { Decision } from "../decision/types.js";
 
 const DIFFICULTIES = new Set<Difficulty>(["low", "medium", "high", "xhigh"]);
+const DIFFICULTY_ORDER: readonly Difficulty[] = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
 const REASONING_EFFORTS = DIFFICULTIES;
+
+function argmaxDifficulty(
+  probabilities: Record<Difficulty, number>,
+): Difficulty {
+  // First maximum wins, making ties prefer the lower ordinal difficulty.
+  return DIFFICULTY_ORDER.reduce((best, current) =>
+    probabilities[current] > probabilities[best] ? current : best,
+  );
+}
+
+function selectDifficulty(
+  strategy: PolicyStrategy,
+  declaredChoice: Difficulty,
+  scoreDifficulty: Difficulty,
+  probabilityArgmax: Difficulty,
+): Difficulty {
+  switch (strategy) {
+    case "ordinal":
+      return scoreDifficulty;
+    case "argmax":
+      return probabilityArgmax;
+    case "conservative":
+      // Keep the model's declared class as a floor; mean-score rounding cannot
+      // silently lower a high/xhigh recommendation.
+      return DIFFICULTY_ORDER.indexOf(declaredChoice) >
+        DIFFICULTY_ORDER.indexOf(scoreDifficulty)
+        ? declaredChoice
+        : scoreDifficulty;
+  }
+}
 
 export class PolicyValidationError extends Error {
   readonly code = "invalid_configuration" as const;
@@ -67,6 +109,14 @@ export function validateRoutingPolicy(
   if (!isRecord(value)) {
     throw new PolicyValidationError("policy must be an object");
   }
+  if (
+    typeof value.strategy !== "string" ||
+    !POLICY_STRATEGIES.includes(value.strategy as PolicyStrategy)
+  ) {
+    throw new PolicyValidationError(
+      "policy.strategy must be conservative, ordinal, or argmax",
+    );
+  }
   if (!isRecord(value.thresholds)) {
     throw new PolicyValidationError("policy.thresholds must be an object");
   }
@@ -124,10 +174,22 @@ export function routeDecision(
   }
   const policy = policyFromConfig(config);
   validateRoutingPolicy(policy);
+  if (!DIFFICULTIES.has(decision.choice)) {
+    throw new PolicyValidationError(
+      "decision.choice must be low, medium, high, or xhigh",
+    );
+  }
 
   const probabilities = normalizeProbabilities(decision.probabilities);
   const score = ordinalScore(probabilities);
-  const difficulty = difficultyForScore(score, policy.thresholds);
+  const scoreDifficulty = difficultyForScore(score, policy.thresholds);
+  const probabilityArgmax = argmaxDifficulty(probabilities);
+  const difficulty = selectDifficulty(
+    policy.strategy,
+    decision.choice,
+    scoreDifficulty,
+    probabilityArgmax,
+  );
   const normalizedDecision = {
     ...decision,
     probabilities,
@@ -135,10 +197,14 @@ export function routeDecision(
   } as Decision;
 
   return {
+    policy: policy.strategy,
     difficulty,
     score,
     target: { ...policy.routes[difficulty] },
     decision: normalizedDecision,
+    declaredChoice: decision.choice,
+    probabilityArgmax,
+    choiceArgmaxDisagreement: decision.choice !== probabilityArgmax,
     fallback: false,
   };
 }
@@ -165,6 +231,7 @@ export function fallbackResult(
   const probabilities = normalizeProbabilities(fallbackDecision.probabilities);
   const score = ordinalScore(probabilities);
   return {
+    policy: policy.strategy,
     difficulty: "high",
     score,
     target: { ...policy.fallback },
@@ -173,6 +240,9 @@ export function fallbackResult(
       probabilities,
       score,
     },
+    declaredChoice: null,
+    probabilityArgmax: null,
+    choiceArgmaxDisagreement: null,
     fallback: true,
     reason,
   };

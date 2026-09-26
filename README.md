@@ -71,10 +71,12 @@ its safe fallback.
    ```
 
    `install` creates or updates the project's `AGENTS.md` while preserving its
-   other content. `doctor` checks the file, configuration, Node.js, and a real
-   backend response. If Ollaya is unavailable, `doctor` exits with status 1;
-   `route` still emits JSON with `fallback: true` and a safe target. A
-   successful decision has `fallback: false`.
+   other content. `doctor` checks Node.js, resolved config and policy, a real
+   typed backend response, and the managed block at the requested path. It also
+   states that Codex instruction loading and child runtime settings are
+   unverified. If Ollaya is unavailable, `doctor` exits with status 1; `route`
+   still emits JSON with `fallback: true` and a safe target. A successful
+   decision has `fallback: false`.
 
 3. Start a **new Codex session** from that project (`codex` in a terminal, or
    open the project in a local Codex app/IDE) and give it an independently
@@ -125,7 +127,7 @@ validated DifficultyDecision
 ordinal score: 0*P(low) + 1*P(medium) + 2*P(high) + 3*P(xhigh)
       |
       v
-deterministic threshold policy
+configured difficulty policy (conservative by default)
       |
       v
 model + reasoning_effort (+ fallback metadata)
@@ -134,8 +136,11 @@ model + reasoning_effort (+ fallback metadata)
 Backend details stay behind an adapter. Policy code consumes normalized
 decisions, so a future native Kev, Laya, Jev, or custom HTTP adapter can be
 added without spreading Ollaya-specific response types through the project.
-Probabilities and the score are retained in the result for inspection; the
-probability argmax is not treated as the route by itself.
+Probabilities, score, backend-declared choice, and probability argmax are
+retained for inspection. The default conservative strategy selects the higher
+ordinal class of the configured score bucket and declared choice; legacy
+ordinal and probability argmax are explicit alternatives. None of these
+strategies establishes the model or effort a host will actually run.
 
 ## Prerequisites
 
@@ -174,20 +179,29 @@ standard input instead. Route-level overrides are `--config PATH`,
 `--backend-url URL`, `--backend-model MODEL`, `--timeout-ms MS`,
 `--fallback-model MODEL`, and `--fallback-reasoning-effort low|medium|high|xhigh`.
 
-JSON output contains the policy-selected difficulty, ordinal score, target model and
-reasoning effort, the normalized probabilities, backend metadata, latency, and
-`fallback`. Human-readable warnings go to stderr so JSON stdout remains
+JSON output contains the policy-selected difficulty, policy name, ordinal score,
+target model and reasoning effort, normalized probabilities, backend metadata,
+latency, and `fallback`. It also includes `declared_choice`,
+`probability_argmax`, and `choice_argmax_disagreement` so disagreements stay
+visible. Human-readable warnings go to stderr so JSON stdout remains
 machine-parseable. A fallback result has `fallback: true` and a machine-readable
 reason such as `backend_unavailable`, `timeout`, `malformed_response`,
-`invalid_probabilities`, `input_truncated`, or `invalid_configuration`.
+`invalid_probabilities`, or `input_truncated`.
 
-The stable JSON keys are `difficulty`, `score`, `model`, `reasoning_effort`,
+The JSON keys are `policy`, `difficulty`, `score`, `model`, `reasoning_effort`,
+`declared_choice`, `probability_argmax`, `choice_argmax_disagreement`,
 `probabilities`, `backend`, `decision_model`, `latency_ms`, `fallback`, and `reason`.
 `reason` is null on success. `latency_ms` is Ollaya's `total_duration` converted
 from nanoseconds, or observed request time when that field is absent. On fallback,
 `backend` is `fallback`, `decision_model` and `latency_ms` are null; the high
 bucket, score 2, and one-hot high probabilities are synthetic placeholders,
 **not a measured estimate**. Always check `fallback` before using these as data.
+The choice and argmax fields are null on fallback because its decision fields
+are synthetic.
+
+Explicit config-file, environment, and policy validation errors exit 2 with
+diagnostics on stderr and no route JSON. An unexpected internal failure exits 1
+without being misreported as a backend fallback.
 
 The decision model's four choices are ordered `low`, `medium`, `high`, and
 `xhigh`. The score is in the inclusive range 0..3. The initial thresholds are
@@ -206,6 +220,7 @@ backend:
   model: kev:latest
   timeout_ms: 2000
 policy:
+  strategy: conservative
   thresholds:
     medium: 0.75
     high: 1.75
@@ -218,16 +233,21 @@ policy:
   fallback: { model: gpt-6-sol, reasoning_effort: high }
 ```
 
-Default score buckets use inclusive lower bounds: low [0, 0.75), medium
-[0.75, 1.75), high [1.75, 2.55), xhigh [2.55, 3]. These initial heuristics
-reserve xhigh for distributions strongly weighted toward the hardest class;
-they are not fitted to the historical 100-task labels. Thresholds must strictly
-increase within 0..3. All four probabilities must be finite values in [0, 1];
-sums within 0.01 of 1 are normalized, larger deviations are rejected.
+`strategy` accepts `conservative`, `ordinal`, or `argmax`. The default
+`conservative` strategy chooses the more difficult class between the ordinal
+score bucket and the backend-declared choice; a high/xhigh declaration therefore
+cannot be silently lowered by mean-score bucketing. `ordinal` reproduces the
+legacy score-only policy. `argmax` selects the largest probability, with ties
+resolved toward the lower ordinal class. All three keep the raw probabilities
+and score visible. Default score buckets use inclusive lower bounds: low [0,
+0.75), medium [0.75, 1.75), high [1.75, 2.55), xhigh [2.55, 3]. These initial
+heuristics are not fitted claims about Codex task success. Thresholds must
+strictly increase within 0..3. All probabilities must be finite values in [0,
+1]; sums within 0.01 of 1 are normalized, larger deviations are rejected.
 
 Recognized environment overrides use the `CODEX_SYSTEMONE_ROUTER_` prefix:
 `BACKEND_TYPE`, `BACKEND_URL`, `BACKEND_MODEL`, `BACKEND_TIMEOUT_MS`,
-`POLICY_THRESHOLDS_MEDIUM|HIGH|XHIGH`,
+`POLICY_STRATEGY`, `POLICY_THRESHOLDS_MEDIUM|HIGH|XHIGH`,
 `POLICY_ROUTES_<DIFFICULTY>_MODEL`,
 `POLICY_ROUTES_<DIFFICULTY>_REASONING_EFFORT`,
 `POLICY_FALLBACK_MODEL`, and `POLICY_FALLBACK_REASONING_EFFORT`. Singular
@@ -280,30 +300,37 @@ exporting it in an unrelated terminal does not change an already running app.
 
 After installation, start a fresh Codex session. Observe the route invocation,
 its returned settings, and the subsequent spawn with the **identical** task.
-When the host requires a fresh/limited-history spawn to accept overrides, use
-that supported form; role presets may fix their own model. The router does not
-invent or override a host's spawn API.
+Use the host's current spawn schema; do not assume a role preset or option
+accepts overrides. The router does not invent or override a host's spawn API.
 
 The installed instructions tell the main agent to:
 
 1. choose independently delegatable implementation, investigation, testing,
    review, or research work;
-2. write a concise self-contained task description before every spawn;
-3. invoke `codex-systemone-router route --json` (stdin is preferred for long
-   descriptions);
-4. read the returned `model` and `reasoning_effort`;
-5. spawn the subagent with those settings and the same task description;
-6. route even tasks that look trivial; and
-7. use the configured fallback if the router cannot run, and report unsupported
-   spawn settings rather than silently substituting another model.
+2. have an assigned child complete its task without re-delegating unless its
+   parent explicitly authorizes that;
+3. write a concise self-contained task description before every spawn,
+   including all role instructions and constraints;
+4. route that exact UTF-8 text through `codex-systemone-router route --stdin
+--json` and pass the identical text as the child task;
+5. use a router decision only after exit 0 and valid JSON with a target; a
+   valid fallback result may be used as returned, while nonzero, command-not-
+   found, invalid config, or invalid JSON must not be used to guess a target;
+6. apply returned settings through the current host's actual spawn schema and
+   report when the host cannot apply them; and
+7. route even tasks that look trivial.
 
 This is a safe instruction path, not technical enforcement. The main agent
 still owns decomposition, integration, and final verification.
 
-`doctor --config PATH --agents-path AGENTS.md` checks Node.js, configuration,
-policy, a typed backend response, and the managed integration state. It exits
-nonzero when the required Node/config/backend checks fail; an absent AGENTS
-file is reported as informational.
+`doctor --config PATH --agents-path AGENTS.md` reports runtime, configuration,
+policy, a typed backend response, and whether the requested file contains the
+current managed block. A missing block is informational; malformed markers,
+unreadable paths, invalid config/policy, an unsupported Node runtime, or a
+failed backend response make the command exit nonzero. The marker check does
+not prove Codex loaded that file. `AGENTS.override.md` or a nearer project file
+may change the active instructions, and `doctor` cannot observe a child's
+effective model or reasoning effort after spawn.
 
 ## Safe fallback
 
@@ -317,9 +344,9 @@ instead of blocking delegation. The fallback target is normally high
 reasoning and can be configured. In JSON mode, warnings remain on stderr and
 stdout contains one valid result. A successful fallback can exit with status 0;
 inspect `fallback` and `reason` when automation needs to distinguish it. Invalid
-configuration uses the built-in fallback because the configured target cannot
-be trusted; run `doctor` for details. Empty/overlong tasks and invalid command
-syntax exit nonzero without JSON. Tasks are limited to 100000 UTF-16 code units.
+configuration exits 2 without JSON because a route cannot be trusted; run
+`doctor` for details. Empty/overlong tasks and invalid command syntax exit
+nonzero without JSON. Tasks are limited to 100000 UTF-16 code units.
 
 ## Privacy and logging
 
@@ -344,6 +371,13 @@ within ±1) is historical context, not a guarantee. Manual labels are heuristic,
 not ground truth. In particular, xhigh is weakly calibrated. Future calibration
 should measure the minimum model/reasoning level at which Codex reliably
 completes a task, while preserving raw probabilities and score.
+
+From a source checkout, `npm run replay` separately recomputes the checked-in
+numeric 100-row historical CSV without network or Codex calls. It reports recorded choice,
+probability argmax, legacy ordinal, and the default conservative candidate.
+The rows do not contain task text, and their manual labels are not Codex task
+outcomes. The repository verification notes document the fixed-dataset
+comparison and its limits.
 
 ## Limitations and roadmap
 

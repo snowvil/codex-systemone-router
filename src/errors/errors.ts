@@ -31,3 +31,6 @@ export class RouterError extends Error {
 export function isRouterError(error: unknown): error is RouterError {
   return error instanceof RouterError;
 }
+
+/** Only typed operational router errors are eligible for backend fallback. */
+export const isExpectedBackendError = isRouterError;

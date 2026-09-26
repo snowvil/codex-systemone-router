@@ -14,15 +14,22 @@ import type {
   RoutingPolicy,
   RoutingTarget,
 } from "../policy/types.js";
+import { POLICY_STRATEGIES } from "../policy/types.js";
 import { validateRoutingPolicy } from "../policy/default-policy.js";
 
 const CONFIG_ENV = "CODEX_SYSTEMONE_ROUTER_CONFIG";
 const PREFIX = "CODEX_SYSTEMONE_ROUTER_";
 const DIFFICULTIES = ["low", "medium", "high", "xhigh"] as const;
 const REASONING_EFFORTS = new Set<ReasoningEffort>(DIFFICULTIES);
+const ALLOWED_POLICY_STRATEGIES = new Set<string>(POLICY_STRATEGIES);
 const ALLOWED_ROOT_KEYS = new Set(["backend", "policy"]);
 const ALLOWED_BACKEND_KEYS = new Set(["type", "url", "model", "timeout_ms"]);
-const ALLOWED_POLICY_KEYS = new Set(["thresholds", "routes", "fallback"]);
+const ALLOWED_POLICY_KEYS = new Set([
+  "strategy",
+  "thresholds",
+  "routes",
+  "fallback",
+]);
 const ALLOWED_THRESHOLD_KEYS = new Set(["medium", "high", "xhigh"]);
 const ALLOWED_TARGET_KEYS = new Set(["model", "reasoning_effort"]);
 const CONFIG_FILE_MAX_BYTES = 1024 * 1024;
@@ -145,6 +152,15 @@ export function validateConfigOverrides(
   if ("policy" in value) {
     assertRecord(value.policy, `${path}.policy`);
     assertAllowedKeys(value.policy, ALLOWED_POLICY_KEYS, `${path}.policy`);
+    if (
+      "strategy" in value.policy &&
+      (typeof value.policy.strategy !== "string" ||
+        !ALLOWED_POLICY_STRATEGIES.has(value.policy.strategy))
+    ) {
+      throw new ConfigValidationError(
+        `${path}.policy.strategy must be conservative, ordinal, or argmax`,
+      );
+    }
     if ("thresholds" in value.policy) {
       assertRecord(value.policy.thresholds, `${path}.policy.thresholds`);
       assertAllowedKeys(
@@ -302,6 +318,9 @@ function environmentOverrides(
       : { reasoning_effort: fallbackEffort }),
   };
 
+  const strategy = envValue(env, [`${PREFIX}POLICY_STRATEGY`]);
+  if (strategy !== undefined) policy.strategy = strategy;
+
   if (Object.keys(thresholds).length > 0) policy.thresholds = thresholds;
   if (Object.keys(routes).length > 0) policy.routes = routes;
   if (fallbackModel !== undefined || fallbackEffort !== undefined) {
@@ -332,6 +351,7 @@ function cloneConfig(value: RouterConfig): RouterConfig {
   return {
     backend: { ...value.backend },
     policy: {
+      strategy: value.policy.strategy,
       thresholds: { ...value.policy.thresholds },
       routes: {
         low: { ...value.policy.routes.low },

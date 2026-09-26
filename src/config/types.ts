@@ -1,6 +1,7 @@
 import type { Difficulty } from "../decision/types.js";
 import type {
   PolicyThresholds,
+  PolicyStrategy,
   RoutingPolicy,
   RoutingTarget,
 } from "../policy/types.js";
@@ -23,6 +24,7 @@ export interface RouterConfig {
 export interface ConfigOverrides {
   backend?: Partial<BackendConfig>;
   policy?: {
+    strategy?: PolicyStrategy;
     thresholds?: Partial<PolicyThresholds>;
     routes?: Partial<Record<Difficulty, Partial<RoutingTarget>>>;
     fallback?: Partial<RoutingTarget>;
