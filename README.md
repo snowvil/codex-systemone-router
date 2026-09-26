@@ -8,8 +8,9 @@ a deterministic, configurable routing policy.
 
 The router makes a decision; it does not perform the delegated work.
 
-Maintainers: see [Branches, versions, and npm publishing](CONTRIBUTING.md#branches-and-versions)
-for the release procedure.
+Maintainers: see [Contributing: branches, versions, and npm publishing](CONTRIBUTING.md#branches-and-versions)
+for the complete Gitflow, version, and release procedure. Release changes are
+recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ## v0.1 status and boundaries
 
