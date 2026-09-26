@@ -1,0 +1,29 @@
+# codex-systemone-router v0.1
+# The score cutoffs are initial heuristics. Tune them with local benchmark data.
+backend:
+  type: ollaya
+  url: http://127.0.0.1:11435/api/decide
+  model: kev:latest
+  timeout_ms: 2000
+
+policy:
+  thresholds:
+    medium: 0.75
+    high: 1.75
+    xhigh: 2.55
+  routes:
+    low:
+      model: gpt-5.6-luna
+      reasoning_effort: low
+    medium:
+      model: gpt-5.6-luna
+      reasoning_effort: medium
+    high:
+      model: gpt-5.6-sol
+      reasoning_effort: high
+    xhigh:
+      model: gpt-5.6-sol
+      reasoning_effort: xhigh
+  fallback:
+    model: gpt-5.6-sol
+    reasoning_effort: high

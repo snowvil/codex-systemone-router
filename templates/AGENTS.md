@@ -1,0 +1,13 @@
+<!-- codex-systemone-router:start -->
+
+Use subagents for independently delegatable implementation, investigation, testing, review, research, and other separable work.
+
+Before EVERY subagent spawn:
+
+1. Create a concise, self-contained task description with context, scope, constraints, and expected evidence.
+2. Route that exact text with `codex-systemone-router route --stdin --json`; feed stdin without shell interpolation or writing a repository task file. If a temporary file is necessary, create it securely with a unique name and remove it immediately after routing.
+3. Read the returned `model` and `reasoning_effort`, then spawn the subagent with those settings. Follow the available tool schema: if overrides require fresh/limited history, use that form (for `collaboration.spawn_agent`, `fork_turns="none"` or a positive count, not the default full-history fork). Avoid role presets that force different settings.
+4. Give the subagent the same self-contained task description.
+
+Do not bypass routing because a task looks trivial. If routing fails, use the returned safe fallback; if the executable cannot run, use the configured safe fallback (built-in: gpt-5.6-sol with high reasoning effort). If the available spawn tool cannot apply those settings, report the limitation and keep the main agent settings instead of silently substituting. This is instruction-driven guidance, not a technical spawn hook. The router chooses resources and does not solve work. The main agent owns decomposition, integration, and final verification.
+<!-- codex-systemone-router:end -->

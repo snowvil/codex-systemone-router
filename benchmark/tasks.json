@@ -1,0 +1,127 @@
+{
+  "name": "representative-v0.1",
+  "canonical": false,
+  "description": "Hand-authored fixtures for local validation when the canonical 100-task dataset is unavailable. Labels are heuristic ordinal references, not ground truth.",
+  "tasks": [
+    {
+      "id": "low-01",
+      "difficulty": "low",
+      "task": "Rename the local variable `colour` to `color` in the formatter and update the nearby comment."
+    },
+    {
+      "id": "low-02",
+      "difficulty": "low",
+      "task": "Add a README example showing the existing `--json` route command. Do not change application code."
+    },
+    {
+      "id": "low-03",
+      "difficulty": "low",
+      "task": "Fix the typo `recieve` to `receive` in the user-facing validation message and keep the wording otherwise unchanged."
+    },
+    {
+      "id": "low-04",
+      "difficulty": "low",
+      "task": "Add a focused test that asserts the pure ordinal score of probabilities low=1, medium=0, high=0, xhigh=0 is zero."
+    },
+    {
+      "id": "low-05",
+      "difficulty": "low",
+      "task": "Update the package description to mention local difficulty routing while preserving the current package name and version."
+    },
+    {
+      "id": "low-06",
+      "difficulty": "low",
+      "task": "Make the existing CLI help output include the `doctor` command in its command list."
+    },
+    {
+      "id": "medium-01",
+      "difficulty": "medium",
+      "task": "Trace the config loader's default path and add a test proving an explicit config path overrides the default path."
+    },
+    {
+      "id": "medium-02",
+      "difficulty": "medium",
+      "task": "Add validation for a missing optional confidence field without rejecting an otherwise valid backend decision."
+    },
+    {
+      "id": "medium-03",
+      "difficulty": "medium",
+      "task": "Refactor the route command's human-readable output into a small formatter and preserve its current fields in the output."
+    },
+    {
+      "id": "medium-04",
+      "difficulty": "medium",
+      "task": "Add installer coverage for running install twice and verify that the managed AGENTS block appears only once."
+    },
+    {
+      "id": "medium-05",
+      "difficulty": "medium",
+      "task": "Implement environment-over-config precedence for the backend timeout and add a deterministic test for the precedence order."
+    },
+    {
+      "id": "medium-06",
+      "difficulty": "medium",
+      "task": "Update the doctor command to report an actionable error when the policy contains an unknown reasoning effort."
+    },
+    {
+      "id": "high-01",
+      "difficulty": "high",
+      "task": "Investigate why a retried payment request can create duplicate records across two application instances, implement an idempotency-safe fix, and add a regression test."
+    },
+    {
+      "id": "high-02",
+      "difficulty": "high",
+      "task": "Audit the Ollaya response parser for malformed JSON, unknown choices, and invalid probability sums; implement strict validation and focused failure tests."
+    },
+    {
+      "id": "high-03",
+      "difficulty": "high",
+      "task": "Trace the repository's AGENTS installer through absent, partial-marker, and existing-block files, then make replacement preserve unrelated user content."
+    },
+    {
+      "id": "high-04",
+      "difficulty": "high",
+      "task": "Diagnose a race between cache invalidation and concurrent reads across the API and worker, choose a safe ordering, implement it, and test the interleaving."
+    },
+    {
+      "id": "high-05",
+      "difficulty": "high",
+      "task": "Add timeout and connection-error handling to the backend adapter so routing returns a configured fallback while JSON stdout remains parseable."
+    },
+    {
+      "id": "high-06",
+      "difficulty": "high",
+      "task": "Review the policy threshold boundary behavior, identify an off-by-one ordinal route, correct it without changing the public result shape, and add boundary tests."
+    },
+    {
+      "id": "xhigh-01",
+      "difficulty": "xhigh",
+      "task": "Design and implement a migration for an event schema used by three services, preserving backward reads, handling partial rollout, and adding compatibility tests for old and new producers."
+    },
+    {
+      "id": "xhigh-02",
+      "difficulty": "xhigh",
+      "task": "Find the source of an intermittent data corruption issue involving retries, concurrency, and eventual consistency across the API, queue, and database; propose and implement a defensible fix with failure-injection tests."
+    },
+    {
+      "id": "xhigh-03",
+      "difficulty": "xhigh",
+      "task": "Plan and execute a security review of an authentication flow spanning token refresh, session revocation, storage, and race conditions, then fix validated vulnerabilities and add regression coverage."
+    },
+    {
+      "id": "xhigh-04",
+      "difficulty": "xhigh",
+      "task": "Replace a cross-module concurrency-sensitive scheduler while preserving public behavior, cancellation, backpressure, and crash recovery; include a staged migration and deterministic stress tests."
+    },
+    {
+      "id": "xhigh-05",
+      "difficulty": "xhigh",
+      "task": "Investigate a production-only memory leak with incomplete traces, correlate lifecycle ownership across native and TypeScript boundaries, implement a low-risk fix, and document the proof and remaining uncertainty."
+    },
+    {
+      "id": "xhigh-06",
+      "difficulty": "xhigh",
+      "task": "Design a backward-compatible routing policy migration that preserves old clients, supports rollback, validates configuration at startup, and proves behavior with contract, property, and failure-path tests."
+    }
+  ]
+}
