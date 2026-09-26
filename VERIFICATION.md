@@ -19,7 +19,7 @@ verification branch is pushed to the private remote; main remains unmodified.
 | Installer preservation and idempotency                     | Partial                                 | User newline preservation, dangling backup symlink, invalid UTF-8 and damaged markers fixed; staged replacement and backups          |
 | Public JSON contract                                       | Implemented, semantics incomplete       | Stable fields, null metadata, policy-selected difficulty and synthetic fallback values documented                                    |
 | Tests and package                                          | Implemented, 39 initial tests           | Expanded regression coverage; actual tarball install/bin/route/install/uninstall smoke test                                          |
-| CI                                                         | Missing                                 | Minimal Node 22 GitHub Actions install/format/typecheck/test/build/pack workflow                                                     |
+| CI                                                         | Missing                                 | Node 22 GitHub Actions install/format/typecheck/test/build/pack workflow using current Node 24 action runtimes                       |
 | Release metadata                                           | Partial                                 | Repository/homepage/issues from actual Git remote; packaged specification fixes CONTRIBUTING link; embedded source maps              |
 | Simplicity and dependencies                                | Some unnecessary duplication            | Duplicate score/normalizer and unused aliases removed; benchmark stdout interception removed; one runtime dependency (yaml) retained |
 
@@ -117,67 +117,11 @@ warnings, so this proves the fresh CLI session path, not a clean Desktop UI run.
 - The only runtime dependency is yaml. Node built-ins cover HTTP, CLI parsing,
   files, timers, and logging; replacing YAML with a hand-written parser would
   increase maintenance cost.
-- Local verification used Node v24.19.0 and Node v22.19.0. Remote GitHub Actions
-  status is updated after the isolated verification branch run.
-- Global npm link in the user's environment was not run. A fresh ephemeral Codex
-  CLI session was run in a disposable project, as described above. A Desktop UI
-  session remains a separate proof boundary.
-- Independent review returned six actionable findings. All six were evaluated
-  and fixed: persistent fixed-name task file guidance, missing host spawn-history
-  guidance, silently accepted truncated task input, ordinary prose mistaken for
-  markers, overly strict partial-route TypeScript types, and the unused optional
-  fallback decision that could produce inconsistent fields.
-- Truncated input now returns fallback with reason input_truncated. Optional
-  truncation metadata is runtime-validated, consistent with the
-  [Ollaya API reference](https://ollaya.dev/docs/api#decide).
-- Tests for truncation, marker prose, and partial route types reproduced the
-  defects before their fixes. The final suite has 78 passing tests.
-- The review itself was routed using its exact task, returning gpt-5.6-sol/high,
-  then dispatched with those explicit settings and a fresh-history fork. This
-  demonstrates one manually orchestrated route/spawn, not automatic enforcement
-  in a fresh user session.
-- The independent reviewer rechecked all six fixes and found no remaining
-  functional issue. An optional suggestion to assert exact instruction strings
-  was not added: text-matching tests do not prove an agent follows the guidance.
-  Template parity, schema review, and fresh-session behavioral validation remain
-  the explicit evidence boundaries.
-
-## Local dogfooding
-
-From a checkout:
-
-```bash
-npm ci
-npm run build
-npm link
-codex-systemone-router doctor
-codex-systemone-router route --json "Rename a local variable without changing behavior."
-codex-systemone-router install --dry-run
-codex-systemone-router install
-```
-
-Install in a disposable project first if desired. For custom mapping, export
-CODEX_SYSTEMONE_ROUTER_CONFIG to an absolute configuration path before starting
-Codex. Start a fresh Codex session and observe Delegate → Route → Spawn using
-the identical subtask and returned settings. Check host model availability;
-AGENTS instructions cannot guarantee interception or enforce every spawn.
-
-Preview removal with codex-systemone-router uninstall --dry-run; uninstall
-removes only the managed block. Backups are retained. Avoid simultaneous edits.
-
-- Strict type checking includes src, tests, and benchmark code.
-- Formatting, strict typecheck, all 78 unit/HTTP/CLI/filesystem tests, build, and
-  npm pack --dry-run passed. A clean temporary checkout also passed npm ci,
-  typecheck, all 74 tests, and build. No tests were skipped or disabled.
-- Packaged executable was installed into a temporary prefix and exercised with
-  --help, doctor, argument route, JSON route, stdin route, both dry-runs, repeated
-  install, and repeated uninstall. Existing fixture instructions survived.
-- npm audit --omit=dev reported zero known runtime vulnerabilities at check time.
-- The only runtime dependency is yaml. Node built-ins cover HTTP, CLI parsing,
-  files, timers, and logging; replacing YAML with a hand-written parser would
-  increase maintenance cost.
-- Local verification used Node v24.19.0 and Node v22.19.0. Remote GitHub Actions
-  status is updated after the isolated verification branch run.
+- Local verification used Node v24.19.0 and Node v22.19.0. GitHub Actions run
+  [36219932158](https://github.com/snowvil/codex-systemone-router/actions/runs/36219932158)
+  passed all steps on the verification branch. After that run exposed the
+  runner's Node 20 action deprecation notice, the workflow was upgraded to
+  actions/checkout@v7.0.1 and actions/setup-node@v7.0.0; the new run is pending.
 - Global npm link in the user's environment was not run. A fresh ephemeral Codex
   CLI session was run in a disposable project, as described above. A Desktop UI
   session remains a separate proof boundary.
