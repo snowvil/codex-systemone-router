@@ -1,8 +1,8 @@
-# Routing reliability feature migration notes
+# Routing reliability 0.2.0 migration notes
 
-These notes are for the later `release/*` review. This feature branch keeps
-`package.json` and `package-lock.json` at `0.1.1`; it does not choose a release
-version, update `CHANGELOG.md`, publish, or create a tag.
+These notes describe the proposed behavior changes for the `0.2.0` release
+candidate. The package version is synchronized in `package.json` and
+`package-lock.json` on the `release/0.2.0` branch.
 
 ## Behavior and configuration
 
@@ -29,15 +29,22 @@ version, update `CHANGELOG.md`, publish, or create a tag.
   target after a failed router command. They remain instruction-driven and do
   not hard-code this repository's Gitflow into user projects.
 
-## Release review
+## Release decision
 
-Because this is a pre-1.0 default behavior and CLI contract change, the release
-owner should review it as a MINOR change under the repository's version policy.
-The release owner should decide whether to keep `conservative` as the default,
-review the added JSON keys and doctor output, move an approved summary into the
-existing `CHANGELOG.md` Unreleased section, synchronize package version files,
-and verify upgrade instructions. Do not reuse the feature tarball's `0.1.1`
-version as a published release.
+This pre-1.0 feature and CLI behavior change is proposed as a MINOR version.
+The `conservative` default is retained to prevent the score bucket from silently
+lowering a backend-declared high or xhigh choice. This is a policy choice, not
+evidence that Codex task success or cost improved. Installations that need the
+previous score-only behavior can select `ordinal` explicitly.
+
+Route JSON fields are additive; consumers should tolerate unknown keys. Scripts
+that relied on invalid configuration exiting successfully with a fallback
+route must handle exit status 2. A backend failure after valid configuration
+continues to produce the configured fallback with exit status 0.
+
+The Codex host still does not expose effective child model or reasoning-effort
+metadata, and the fresh active-project CLI probe did not spawn a child. Issue #5
+remains open; no runtime model or effort application is claimed by this release.
 
 The 100-row offline replay contains heuristic manual difficulty labels without
 task text. Its comparison is a fixed-dataset sanity check, not Codex task
