@@ -175,7 +175,7 @@ removes only the managed block. Backups are retained. Avoid simultaneous edits.
 
 ## Develop-based routing reliability feature verification (2026-09-26)
 
-This run starts from `origin/develop` `0fbac7f974353eed4a02981a64ecf3bb5f908344` on `feature/routing-reliability`. The result is not integrated. Detailed per-issue state, replay metrics, H05 case hashes, and resume conditions are in [`docs/superpowers/plans/2026-09-26-routing-reliability.md`](docs/superpowers/plans/2026-09-26-routing-reliability.md). The supplied prompt/evidence files remain unmodified and untracked.
+This run starts from `origin/develop` `0fbac7f974353eed4a02981a64ecf3bb5f908344` on `feature/routing-reliability`; implementation source commit: `f40dca0103e3629692391a2d8d460f4a8de95a1b`. The result is not integrated. Detailed per-issue state, replay metrics, H05 case hashes, and resume conditions are in [`docs/superpowers/plans/2026-09-26-routing-reliability.md`](docs/superpowers/plans/2026-09-26-routing-reliability.md). The supplied prompt/evidence files remain unmodified and untracked.
 
 ### Checks
 
