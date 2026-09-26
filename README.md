@@ -8,6 +8,9 @@ a deterministic, configurable routing policy.
 
 The router makes a decision; it does not perform the delegated work.
 
+Maintainers: see [Branches, versions, and npm publishing](CONTRIBUTING.md#branches-and-versions)
+for the release procedure.
+
 ## v0.1 status and boundaries
 
 The v0.1 integration is instruction-driven through `AGENTS.md`. The managed
