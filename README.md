@@ -26,8 +26,9 @@ returned by a backend and does not bind a server port.
 
 ## Quick start: connect it to Codex
 
-Install the package from npm as shown below. You need Node.js 22 or newer and
-a local Codex installation with subagents available. Ollaya and
+For a published release, install the package from npm as shown below. If the
+npm release is unavailable, use the source checkout instead. You need Node.js
+22 or newer and a local Codex installation with subagents available. Ollaya and
 `kev:latest` are required for live decisions; without them, the router returns
 its safe fallback.
 
