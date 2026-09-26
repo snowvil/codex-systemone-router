@@ -106,8 +106,9 @@ its CI run has passed:
    requires account two-factor authentication or an authorized granular token;
    do not put credentials in this repository.
 2. Run `npm ci`, `npm run format:check`, `npm run typecheck`, `npm test`,
-   `npm run build`, `npm audit --omit=dev`, and `npm pack --dry-run`. Inspect the
-   files in the tarball for secrets, local output, and stale documentation.
+   `npm run build`, `npm audit --omit=dev`, `npm pack --dry-run`, and
+   `npm publish --dry-run`. Inspect the tarball for secrets, local output, and
+   stale documentation; resolve any manifest auto-correction warnings.
 3. Check that the exact version is not already on npm with
    `npm view codex-systemone-router@0.1.0 version` (replace 0.1.0 for later
    releases). For this unscoped public package, publish from `main` with
