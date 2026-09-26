@@ -12,25 +12,25 @@ export const DEFAULT_THRESHOLDS = Object.freeze({
 
 export const DEFAULT_ROUTES = Object.freeze({
   low: Object.freeze({
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     reasoning_effort: "low" as const,
   }),
   medium: Object.freeze({
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     reasoning_effort: "medium" as const,
   }),
   high: Object.freeze({
-    model: "gpt-5.6-sol",
+    model: "gpt-6-sol",
     reasoning_effort: "high" as const,
   }),
   xhigh: Object.freeze({
-    model: "gpt-5.6-sol",
+    model: "gpt-6-astra",
     reasoning_effort: "xhigh" as const,
   }),
 });
 
 export const DEFAULT_FALLBACK = Object.freeze({
-  model: "gpt-5.6-sol",
+  model: "gpt-6-sol",
   reasoning_effort: "high" as const,
 });
 

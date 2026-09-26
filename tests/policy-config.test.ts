@@ -72,6 +72,22 @@ describe("ordinal probability score", () => {
 });
 
 describe("deterministic routing policy", () => {
+  it("defaults every route and fallback to a gpt-6 model", () => {
+    const config = cloneDefaultConfig();
+    const targets = [
+      ...Object.values(config.policy.routes),
+      config.policy.fallback,
+    ];
+
+    assert.deepEqual(targets, [
+      { model: "gpt-6-luna", reasoning_effort: "low" },
+      { model: "gpt-6-luna", reasoning_effort: "medium" },
+      { model: "gpt-6-sol", reasoning_effort: "high" },
+      { model: "gpt-6-astra", reasoning_effort: "xhigh" },
+      { model: "gpt-6-sol", reasoning_effort: "high" },
+    ]);
+  });
+
   it("uses lower-bound thresholds and keeps exact boundaries stable", () => {
     const thresholds = { medium: 0.75, high: 1.5, xhigh: 2.25 };
     assert.equal(difficultyForScore(0, thresholds), "low");
@@ -88,7 +104,7 @@ describe("deterministic routing policy", () => {
       config,
     );
     assert.equal(result.difficulty, "high");
-    assert.equal(result.target.model, "gpt-5.6-sol");
+    assert.equal(result.target.model, "gpt-6-sol");
     assert.equal(result.fallback, false);
     assert.equal(result.score, 2.1);
   });

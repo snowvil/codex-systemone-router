@@ -1,5 +1,8 @@
 # v0.1 second-pass verification
 
+Historical routing outputs in this report reflect the pre-0.1.1 model policy.
+The 0.1.1 defaults use gpt-6-luna, gpt-6-sol, and gpt-6-astra.
+
 ## Scope and requirement checklist
 
 The complete IMPLEMENTATION.md specification and all source, tests, templates,

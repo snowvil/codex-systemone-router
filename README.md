@@ -210,11 +210,11 @@ policy:
     high: 1.75
     xhigh: 2.55
   routes:
-    low: { model: gpt-5.6-luna, reasoning_effort: low }
-    medium: { model: gpt-5.6-luna, reasoning_effort: medium }
-    high: { model: gpt-5.6-sol, reasoning_effort: high }
-    xhigh: { model: gpt-5.6-sol, reasoning_effort: xhigh }
-  fallback: { model: gpt-5.6-sol, reasoning_effort: high }
+    low: { model: gpt-6-luna, reasoning_effort: low }
+    medium: { model: gpt-6-luna, reasoning_effort: medium }
+    high: { model: gpt-6-sol, reasoning_effort: high }
+    xhigh: { model: gpt-6-astra, reasoning_effort: xhigh }
+  fallback: { model: gpt-6-sol, reasoning_effort: high }
 ```
 
 Default score buckets use inclusive lower bounds: low [0, 0.75), medium

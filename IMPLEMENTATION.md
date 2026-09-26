@@ -45,7 +45,7 @@ echo "<task>" | codex-systemone-router route --stdin --json
 ```
 Conceptual JSON:
 ```json
-{"difficulty":"high","score":1.84,"model":"gpt-5.6-sol","reasoning_effort":"high","probabilities":{"low":0.07,"medium":0.21,"high":0.52,"xhigh":0.20},"backend":"ollaya","decision_model":"kev:latest","latency_ms":218,"fallback":false}
+{"difficulty":"high","score":1.84,"model":"gpt-6-sol","reasoning_effort":"high","probabilities":{"low":0.07,"medium":0.21,"high":0.52,"xhigh":0.20},"backend":"ollaya","decision_model":"kev:latest","latency_ms":218,"fallback":false}
 ```
 
 ## Explicit non-goals
@@ -141,10 +141,10 @@ Range 0..3. Pure function + thorough tests. Argmax need not equal final route.
 ## Policy
 Deterministic + configurable. Example only:
 ```yaml
-low:    { model: gpt-5.6-luna, reasoning_effort: low }
-medium: { model: gpt-5.6-luna, reasoning_effort: medium }
-high:   { model: gpt-5.6-sol,  reasoning_effort: high }
-xhigh:  { model: gpt-5.6-sol,  reasoning_effort: xhigh }
+low:    { model: gpt-6-luna, reasoning_effort: low }
+medium: { model: gpt-6-luna, reasoning_effort: medium }
+high:   { model: gpt-6-sol,  reasoning_effort: high }
+xhigh:  { model: gpt-6-astra, reasoning_effort: xhigh }
 ```
 Do not scatter model names in code. Score thresholds configurable. Any initial thresholds are heuristics; do not present them as proven calibration.
 
@@ -184,11 +184,11 @@ policy:
     high: <calibrated>
     xhigh: <calibrated>
   routes:
-    low:    { model: gpt-5.6-luna, reasoning_effort: low }
-    medium: { model: gpt-5.6-luna, reasoning_effort: medium }
-    high:   { model: gpt-5.6-sol, reasoning_effort: high }
-    xhigh:  { model: gpt-5.6-sol, reasoning_effort: xhigh }
-  fallback: { model: gpt-5.6-sol, reasoning_effort: high }
+    low:    { model: gpt-6-luna, reasoning_effort: low }
+    medium: { model: gpt-6-luna, reasoning_effort: medium }
+    high:   { model: gpt-6-sol, reasoning_effort: high }
+    xhigh:  { model: gpt-6-astra, reasoning_effort: xhigh }
+  fallback: { model: gpt-6-sol, reasoning_effort: high }
 ```
 If overrides exist, deterministic precedence: CLI > env > config > defaults. Keep configuration small.
 

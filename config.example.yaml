@@ -13,17 +13,17 @@ policy:
     xhigh: 2.55
   routes:
     low:
-      model: gpt-5.6-luna
+      model: gpt-6-luna
       reasoning_effort: low
     medium:
-      model: gpt-5.6-luna
+      model: gpt-6-luna
       reasoning_effort: medium
     high:
-      model: gpt-5.6-sol
+      model: gpt-6-sol
       reasoning_effort: high
     xhigh:
-      model: gpt-5.6-sol
+      model: gpt-6-astra
       reasoning_effort: xhigh
   fallback:
-    model: gpt-5.6-sol
+    model: gpt-6-sol
     reasoning_effort: high
