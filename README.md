@@ -26,13 +26,20 @@ returned by a backend and does not bind a server port.
 
 ## Quick start: connect it to Codex
 
-This repository is public. Until the package is published to npm, install it
-from source as shown below. You need Node.js 22 or newer and a local Codex
-installation with subagents available. Ollaya and
+Install the package from npm as shown below. You need Node.js 22 or newer and
+a local Codex installation with subagents available. Ollaya and
 `kev:latest` are required for live decisions; without them, the router returns
 its safe fallback.
 
-1. Install the executable from source:
+1. Install the executable:
+
+   ```bash
+   npm install --global codex-systemone-router
+   command -v codex-systemone-router
+   codex-systemone-router --help
+   ```
+
+   To install the current source checkout instead:
 
    ```bash
    git clone https://github.com/snowvil/codex-systemone-router.git
@@ -44,10 +51,11 @@ its safe fallback.
    codex-systemone-router --help
    ```
 
-   `npm link` makes the command available through npm's global executable
-   directory. The `command -v` line must resolve in the environment that
-   launches Codex. If it does not, add that directory to `PATH` and start a new
-   Codex process. An already running desktop app may retain its old `PATH`.
+   Global installation (or `npm link` for a source checkout) makes the command
+   available through npm's executable directory. The `command -v` line must
+   resolve in the environment that launches Codex. If it does not, add that
+   directory to `PATH` and start a new Codex process. An already running desktop
+   app may retain its old `PATH`.
 
 2. In the **project where you use Codex**, install the managed instructions:
 
