@@ -78,6 +78,51 @@ enough for a new user to reproduce them. State when data is representative and
 when labels are heuristic. Do not market the exploratory M4 figures as a
 guarantee, and call out the weak xhigh calibration.
 
+## Branches and versions
+
+`main` is the release source. Develop changes on a short-lived branch (for
+example `codex/<topic>`), run the standard checks, and integrate the reviewed,
+passing change into `main`. Confirm the resulting `main` commit passes CI,
+then remove its local and remote topic branch. Never publish an npm version
+from an unmerged topic branch or a dirty working tree.
+
+Use semantic versions in both `package.json` and `package-lock.json`. For this
+0.x series, increment the patch for compatible fixes and the minor for new
+features or breaking changes; reserve 1.0.0 for a stable public contract. npm
+does not allow replacing an already published package version, so each release
+needs a new version. Prepare a version change on a topic branch with
+`npm version patch --no-git-tag-version` or an explicit version such as
+`npm version 0.2.0 --no-git-tag-version`. Commit both package files, run CI,
+and merge before publishing. The initial 0.1.0 release already has its version
+set; do not bump it just to make the first publication.
+
+## Publishing to npm (maintainers)
+
+Publish only after the intended version is on a clean, up-to-date `main` and
+its CI run has passed:
+
+1. Confirm `npm pkg get name version`, `npm whoami`, and the registry
+   (`npm config get registry`). Sign in with `npm login` if needed. Publishing
+   requires account two-factor authentication or an authorized granular token;
+   do not put credentials in this repository.
+2. Run `npm ci`, `npm run format:check`, `npm run typecheck`, `npm test`,
+   `npm run build`, `npm audit --omit=dev`, and `npm pack --dry-run`. Inspect the
+   files in the tarball for secrets, local output, and stale documentation.
+3. Check that the exact version is not already on npm with
+   `npm view codex-systemone-router@0.1.0 version` (replace 0.1.0 for later
+   releases). For this unscoped public package, publish from `main` with
+   `npm publish`. A missing version is expected before the first release; the
+   publish command is the final name and permission check.
+4. Verify the registry entry with `npm view codex-systemone-router version` and
+   install it in a disposable directory. Only after publication succeeds, tag
+   that same `main` commit as `v<version>` and push the tag. Record the npm URL
+   and commit in release notes.
+
+If publication fails, keep the version commit and fix the cause before retrying.
+Do not create a release tag for an unpublished version. The npm CLI and current
+registry policy are described in the
+[npm public-package guide](https://docs.npmjs.com/creating-and-publishing-unscoped-public-packages/).
+
 ## Pull requests
 
 Before opening a pull request:

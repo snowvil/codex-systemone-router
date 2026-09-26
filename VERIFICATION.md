@@ -4,9 +4,10 @@
 
 The complete IMPLEMENTATION.md specification and all source, tests, templates,
 configuration, benchmark fixtures, package metadata, and documentation were read.
-Existing untracked implementation work was preserved. No global Codex settings,
-real user AGENTS.md, Ollaya installation, or npm publication was changed. The
-verification branch is pushed to the private remote; main remains unmodified.
+Existing untracked implementation work was preserved. This verification pass
+did not change global Codex settings, real user AGENTS.md, the Ollaya
+installation, or npm publication. It ran on an isolated branch before
+integration into main.
 
 | Area                                                       | Initial state                           | Second-pass disposition                                                                                                              |
 | ---------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |

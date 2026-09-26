@@ -23,17 +23,16 @@ returned by a backend and does not bind a server port.
 
 ## Quick start: connect it to Codex
 
-This repository is currently private and the package has not been published to
-npm. The commands below require access to the repository, Node.js 22 or newer,
-and a local Codex installation with subagents available. Ollaya and
+This repository is public. Until the package is published to npm, install it
+from source as shown below. You need Node.js 22 or newer and a local Codex
+installation with subagents available. Ollaya and
 `kev:latest` are required for live decisions; without them, the router returns
 its safe fallback.
 
 1. Install the executable from source:
 
    ```bash
-   git clone --branch codex/v0.1-second-pass --single-branch \
-     https://github.com/snowvil/codex-systemone-router.git
+   git clone https://github.com/snowvil/codex-systemone-router.git
    cd codex-systemone-router
    npm ci
    npm run build
