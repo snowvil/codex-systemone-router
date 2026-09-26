@@ -36,6 +36,15 @@ test("checked-in AGENTS template matches the installed block", () => {
   );
 });
 
+test("AGENTS template follows repository-local policy without hardcoding branch names", () => {
+  assert.ok(
+    MANAGED_AGENTS_BLOCK.includes(
+      "Before changing a repository, read its AGENTS.md plus contribution, version, and release guidance; follow that repository's documented branch workflow and do not apply another project's policy.",
+    ),
+  );
+  assert.doesNotMatch(MANAGED_AGENTS_BLOCK, /\bmain\b|\bdevelop\b|feature\//);
+});
+
 test("AGENTS installer creates the managed block when the file is absent", () => {
   const path = tempAgentsPath();
 

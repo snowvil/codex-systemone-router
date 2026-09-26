@@ -31,6 +31,15 @@ It may use the local backend when configured. Treat its measurements as
 environment-specific evidence and do not turn a representative fixture run
 into a claim about the canonical 100-task benchmark.
 
+The offline historical replay is separate as well:
+
+```bash
+npm run replay
+```
+
+It recomputes the checked-in numeric 100-row CSV without a backend. Its manual
+difficulty labels are not Codex task-success outcomes.
+
 ## Scope and design rules
 
 v0.1 has four boundaries:
@@ -42,7 +51,11 @@ v0.1 has four boundaries:
 
 Keep model names in configuration/policy data rather than scattering them
 through implementation code. Preserve all four probabilities and the score.
-Do not route from argmax alone or treat confidence as the only routing signal.
+The default `conservative` policy takes the higher of the backend-declared
+choice and the configured ordinal score bucket. `ordinal` preserves the legacy
+score-only policy, and `argmax` is an explicit selectable policy with low-first
+tie handling. Do not treat confidence as the only routing signal. Keep
+logical difficulty separate from model/effort mapping.
 Use native `fetch` and filesystem/process APIs where practical; avoid adding a
 framework, database, logging framework, daemon, server, or speculative
 abstraction.
@@ -80,26 +93,53 @@ guarantee, and call out the weak xhigh calibration.
 
 ## Branches and versions
 
-`main` is the release source. Develop changes on a short-lived branch (for
-example `codex/<topic>`), run the standard checks, and integrate the reviewed,
-passing change into `main`. Confirm the resulting `main` commit passes CI,
-then remove its local and remote topic branch. Never publish an npm version
-from an unmerged topic branch or a dirty working tree.
+This repository uses Gitflow. Create branches with lowercase kebab-case slugs:
 
-Use semantic versions in both `package.json` and `package-lock.json`. For this
-0.x series, increment the patch for compatible fixes and the minor for new
-features or breaking changes; reserve 1.0.0 for a stable public contract. npm
-does not allow replacing an already published package version, so each release
-needs a new version. Prepare a version change on a topic branch with
-`npm version patch --no-git-tag-version` or an explicit version such as
-`npm version 0.2.0 --no-git-tag-version`. Commit both package files, run CI,
-and merge before publishing. The initial 0.1.0 release already has its version
-set; do not bump it just to make the first publication.
+| Branch              | Base                     | Purpose and integration                                                                                                                                                       |
+| ------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main`              | Existing release history | Canonical release branch. Accept reviewed `release/*` and `hotfix/*` changes. Publish and tag the passing `main` commit.                                                      |
+| `develop`           | Initially `main`         | Integration branch for the next release. Accept reviewed `feature/*` changes and release back-merges.                                                                         |
+| `feature/<slug>`    | `develop`                | Feature, fix, or scoped maintenance work. Run checks and merge through review into `develop`.                                                                                 |
+| `release/<version>` | `develop`                | Stabilize a candidate, make release fixes, and update version and changelog. Merge through review into `main`, publish and tag, then back-merge release fixes into `develop`. |
+| `hotfix/<slug>`     | `main`                   | Urgent production correction. Update version and changelog, merge through review into `main`, publish and tag, then merge the fix into `develop`.                             |
+
+`main` and `develop` are shared branches. Do not make direct changes on them.
+Use pull requests and the repository's required checks for integration. Remove
+merged topic branches when the hosting workflow permits it.
+
+Before implementation or release work, the main agent reads the applicable
+`AGENTS.md` and this policy, checks the worktree and current branch, and
+inspects available local and remote branches. Leave unrelated working-tree
+changes untouched. Create a `feature/<slug>` branch from `develop` for a normal
+change unless the user has assigned a branch or worktree. Delegated agents work
+in their assigned branch or worktree; they do not create competing integration
+branches unless directed. Review the diff, run the required checks, and use the
+review path above. Agents do not force-push, publish packages, create release
+tags, or merge to a remote shared branch unless the user explicitly requests
+that action.
+
+Follow Semantic Versioning for the npm package:
+
+- Before `1.0.0`, increment PATCH for compatible fixes and documentation
+  corrections; increment MINOR for new features or any breaking change to the
+  pre-1.0 contract. A compatible hotfix normally increments PATCH, while a
+  breaking pre-1.0 hotfix increments MINOR.
+- From `1.0.0`, increment MAJOR for breaking changes, MINOR for
+  backward-compatible features, and PATCH for backward-compatible fixes.
+- Keep the versions in `package.json` and `package-lock.json` identical. A
+  `release/*` or `hotfix/*` branch owns both version files and `CHANGELOG.md`.
+  Use `npm version patch --no-git-tag-version` or an explicit version such as
+  `npm version 0.2.0 --no-git-tag-version`, then review and commit both files.
+  Move release notes from `Unreleased` into the dated version section.
+- Never reuse or overwrite a published npm version. Tag a published release
+  `vX.Y.Z`, using the exact version in both package files. Read the current
+  version from the repository manifests rather than assuming a fixed value.
 
 ## Publishing to npm (maintainers)
 
-Publish only after the intended version is on a clean, up-to-date `main` and
-its CI run has passed:
+First merge the reviewed `release/*` or `hotfix/*` changes to `main`. Publish
+only after that exact version is on a clean, up-to-date `main` and its CI run
+has passed:
 
 1. Confirm `npm pkg get name version`, `npm whoami`, and the registry
    (`npm config get registry`). Sign in with `npm login` if needed. Publishing
@@ -110,14 +150,16 @@ its CI run has passed:
    `npm publish --dry-run`. Inspect the tarball for secrets, local output, and
    stale documentation; resolve any manifest auto-correction warnings.
 3. Check that the exact version is not already on npm with
-   `npm view codex-systemone-router@0.1.0 version` (replace 0.1.0 for later
-   releases). For this unscoped public package, publish from `main` with
-   `npm publish`. A missing version is expected before the first release; the
-   publish command is the final name and permission check.
-4. Verify the registry entry with `npm view codex-systemone-router version` and
-   install it in a disposable directory. Only after publication succeeds, tag
-   that same `main` commit as `v<version>` and push the tag. Record the npm URL
-   and commit in release notes.
+   `npm view codex-systemone-router@<version> version` (replace `<version>`
+   with the version in both package files). For this unscoped public package,
+   publish from `main` with `npm publish`. A missing version is expected before
+   publication; the publish command is the final name and permission check.
+4. Verify the registry entry with `npm view codex-systemone-router@<version> version`
+   and run `npm install codex-systemone-router@<version>` in a disposable
+   directory, using the same `<version>` as in step 3. Only after
+   publication and registry verification succeed, tag that same `main` commit
+   as `vX.Y.Z` and push the tag. Record the npm URL and commit in release notes.
+   Back-merge release fixes or the hotfix into `develop` through review.
 
 If publication fails, keep the version commit and fix the cause before retrying.
 Do not create a release tag for an unpublished version. The npm CLI and current

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -22,16 +22,20 @@ const RESPONSE = {
 async function run(
   args: string[],
   input?: string | Buffer[],
+  envOverrides: Record<string, string> = {},
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return await new Promise((done, reject) => {
     const child = spawn(CLI, [SOURCE, ...args], {
       timeout: 10000,
       cwd: resolve(),
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(
-          ([key]) => !key.startsWith("CODEX_SYSTEMONE_ROUTER_"),
+      env: {
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(
+            ([key]) => !key.startsWith("CODEX_SYSTEMONE_ROUTER_"),
+          ),
         ),
-      ),
+        ...envOverrides,
+      },
     });
     let stdout = "";
     let stderr = "";
@@ -61,6 +65,7 @@ describe("CLI", () => {
   let directory: string;
   let configPath: string;
   let receivedTask: string;
+  let requestCount = 0;
   let responseMode = "valid";
 
   before(async () => {
@@ -71,6 +76,7 @@ describe("CLI", () => {
       for await (const chunk of request) body += chunk.toString();
       const parsed = JSON.parse(body) as { state: string };
       assert.ok(parsed.state.length > 0);
+      requestCount += 1;
       receivedTask = parsed.state;
       if (responseMode === "truncated") {
         response.end(JSON.stringify({ ...RESPONSE, state_truncated: true }));
@@ -151,6 +157,10 @@ describe("CLI", () => {
     assert.equal(json.reasoning_effort, "high");
     assert.equal(json.score, 1.95);
     assert.equal(json.fallback, false);
+    assert.equal(json.policy, "conservative");
+    assert.equal(json.declared_choice, "high");
+    assert.equal(json.probability_argmax, "high");
+    assert.equal(json.choice_argmax_disagreement, false);
     assert.equal(json.latency_ms, 210);
   });
 
@@ -192,17 +202,75 @@ describe("CLI", () => {
     assert.equal(json.fallback, true);
     assert.equal(json.reason, "backend_unavailable");
     assert.equal(json.reasoning_effort, "high");
+    assert.equal(json.policy, "conservative");
+    assert.equal(json.declared_choice, null);
+    assert.equal(json.probability_argmax, null);
+    assert.equal(json.choice_argmax_disagreement, null);
     assert.match(result.stderr, /fallback/);
   });
 
   it("reports doctor success and failure", async () => {
     const success = await run(["doctor", "--config", configPath]);
     assert.equal(success.code, 0);
-    assert.match(success.stdout, /PASS Ollaya/);
+    assert.match(success.stdout, /PASS runtime: Node/);
+    assert.match(success.stdout, /PASS configuration/);
+    assert.match(success.stdout, /PASS policy: conservative/);
+    assert.match(success.stdout, /PASS backend typed response/);
+    assert.match(success.stdout, /INFO managed block: absent/);
+    assert.match(success.stdout, /UNVERIFIED Codex instruction loading/);
+    assert.match(success.stdout, /UNVERIFIED child runtime settings/);
+
+    const currentPath = join(directory, "current-template.md");
+    const template = await readFile(
+      new URL("../templates/AGENTS.md", import.meta.url),
+      "utf8",
+    );
+    await writeFile(currentPath, template);
+    const current = await run([
+      "doctor",
+      "--config",
+      configPath,
+      "--agents-path",
+      currentPath,
+    ]);
+    assert.equal(current.code, 0);
+    assert.match(
+      current.stdout,
+      /INFO managed block: present \(matches current template\)/,
+    );
+
+    const stalePath = join(directory, "stale-template.md");
+    await writeFile(
+      stalePath,
+      template.replace("Use subagents", "Use helpers"),
+    );
+    const stale = await run([
+      "doctor",
+      "--config",
+      configPath,
+      "--agents-path",
+      stalePath,
+    ]);
+    assert.equal(stale.code, 0);
+    assert.match(
+      stale.stdout,
+      /INFO managed block: present \(template update available\)/,
+    );
+
     const failureConfig = join(directory, "missing.yaml");
     const failure = await run(["doctor", "--config", failureConfig]);
     assert.equal(failure.code, 1);
     assert.match(failure.stdout, /FAIL configuration/);
+
+    const invalidPolicyPath = join(directory, "invalid-policy.yaml");
+    await writeFile(
+      invalidPolicyPath,
+      "policy:\n  thresholds:\n    medium: 2\n    high: 1\n    xhigh: 3\n",
+    );
+    const invalidPolicy = await run(["doctor", "--config", invalidPolicyPath]);
+    assert.equal(invalidPolicy.code, 1);
+    assert.match(invalidPolicy.stdout, /FAIL policy/);
+    assert.match(invalidPolicy.stdout, /SKIP backend typed response/);
     const agentsPath = join(directory, "AGENTS.md");
     await writeFile(
       agentsPath,
@@ -216,7 +284,7 @@ describe("CLI", () => {
       agentsPath,
     ]);
     assert.equal(malformed.code, 1);
-    assert.match(malformed.stdout, /FAIL AGENTS integration/);
+    assert.match(malformed.stdout, /FAIL managed block: malformed markers/);
   });
   it("preserves UTF-8 split across stdin chunks", async () => {
     const result = await run(
@@ -282,7 +350,89 @@ describe("CLI", () => {
     assert.equal(receivedTask, "--literal");
   });
 
-  it("returns built-in fallback for invalid config and configured fallback for backend errors", async () => {
+  it("rejects invalid explicit configuration without routing or leaking details", async () => {
+    const invalidConfigs = [
+      `backend:\n  url: http://user:secret@127.0.0.1\n`,
+      `unknown: true\n`,
+      `policy:\n  thresholds:\n    high: 4\n`,
+      `policy:\n  thresholds:\n    medium: 2\n    high: 1\n    xhigh: 3\n`,
+      `policy:\n  routes:\n    high:\n      model: ''\n`,
+      `policy:\n  fallback:\n    reasoning_effort: impossible\n`,
+      `backend: [malformed\n`,
+    ];
+    for (const contents of invalidConfigs) {
+      const invalidPath = join(directory, `invalid-${Math.random()}.yaml`);
+      await writeFile(invalidPath, contents);
+      const before = requestCount;
+      const result = await run([
+        "route",
+        "--json",
+        "--config",
+        invalidPath,
+        "sensitive task text",
+      ]);
+      assert.equal(result.code, 2);
+      assert.equal(result.stdout, "");
+      assert.ok(result.stderr);
+      assert.doesNotMatch(
+        result.stderr,
+        /sensitive task text|user|secret|127\.0\.0\.1/,
+      );
+      assert.equal(requestCount, before);
+    }
+
+    const beforeMissing = requestCount;
+    const missing = await run([
+      "route",
+      "--json",
+      "--config",
+      join(directory, "does-not-exist.yaml"),
+      "task",
+    ]);
+    assert.equal(missing.code, 2);
+    assert.equal(missing.stdout, "");
+    assert.equal(requestCount, beforeMissing);
+
+    const beforeUnreadable = requestCount;
+    const unreadable = await run([
+      "route",
+      "--json",
+      "--config",
+      directory,
+      "task",
+    ]);
+    assert.equal(unreadable.code, 2);
+    assert.equal(unreadable.stdout, "");
+    assert.equal(requestCount, beforeUnreadable);
+
+    const beforeTimeout = requestCount;
+    const invalidTimeout = await run([
+      "route",
+      "--json",
+      "--config",
+      configPath,
+      "--timeout-ms",
+      "bad",
+      "task",
+    ]);
+    assert.equal(invalidTimeout.code, 2);
+    assert.equal(invalidTimeout.stdout, "");
+    assert.equal(requestCount, beforeTimeout);
+  });
+
+  it("rejects invalid configuration from environment without routing", async () => {
+    const before = requestCount;
+    const result = await run(
+      ["route", "--json", "--config", configPath, "task"],
+      undefined,
+      { CODEX_SYSTEMONE_ROUTER_BACKEND_TIMEOUT_MS: "bad" },
+    );
+    assert.equal(result.code, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(requestCount, before);
+  });
+
+  it("retains configured fallback for backend errors", async () => {
     const invalid = await run([
       "route",
       "--json",
@@ -290,9 +440,8 @@ describe("CLI", () => {
       "bad",
       "task",
     ]);
-    assert.equal(invalid.code, 0);
-    assert.equal(JSON.parse(invalid.stdout).reason, "invalid_configuration");
-    assert.match(invalid.stderr, /fallback/);
+    assert.equal(invalid.code, 2);
+    assert.equal(invalid.stdout, "");
     const configured = await run([
       "route",
       "--json",
@@ -344,7 +493,7 @@ describe("CLI", () => {
     try {
       const result = await run(["doctor", "--config", configPath]);
       assert.equal(result.code, 1);
-      assert.match(result.stdout, /FAIL Ollaya/);
+      assert.match(result.stdout, /FAIL backend typed response/);
     } finally {
       responseMode = "valid";
     }
@@ -356,6 +505,9 @@ describe("CLI", () => {
       directory,
     ]);
     assert.equal(result.code, 1);
-    assert.match(result.stderr, /AGENTS integration could not be read/);
+    assert.match(
+      result.stdout,
+      /FAIL managed block: requested path is unreadable/,
+    );
   });
 });

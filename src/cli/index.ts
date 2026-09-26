@@ -61,8 +61,9 @@ Route overrides:
 
 Use -- before a task beginning with -. Stdin accepts up to 100000 UTF-16 code
 units. Use --help or -h for help. Configuration: CLI > env > file > defaults.
-Route returns exit 0 for safe fallback; inspect fallback and reason in JSON.
-Usage errors exit 1 (unknown command: 2); doctor failures exit 1.
+Route returns exit 0 for backend fallback; inspect fallback and reason in JSON.
+Invalid configuration exits 2 without a route; unexpected internal errors exit 1.
+Doctor failures exit 1; unknown commands exit 2.
 `;
 
 if (
