@@ -71,6 +71,16 @@ try {
   const packInfo = JSON.parse(packed.stdout)[0];
   const tarball = join(packDir, packInfo.filename);
   const tarBytes = await readFile(tarball);
+  const runtimeDependencyPack = await run(
+    "npm",
+    ["pack", "--json", "--pack-destination", packDir],
+    { cwd: join(repo, "node_modules", "yaml") },
+  );
+  checkRun(runtimeDependencyPack);
+  const runtimeDependencyTarball = join(
+    packDir,
+    JSON.parse(runtimeDependencyPack.stdout)[0].filename,
+  );
   const files = new Set(packInfo.files.map(({ path }) => path));
   for (const required of [
     "CHANGELOG.md",
@@ -120,6 +130,7 @@ try {
       "--prefix",
       prefix,
       tarball,
+      runtimeDependencyTarball,
     ],
     {
       cwd: project,
