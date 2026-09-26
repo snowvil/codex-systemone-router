@@ -141,8 +141,9 @@ has passed:
    with the version in both package files). For this unscoped public package,
    publish from `main` with `npm publish`. A missing version is expected before
    publication; the publish command is the final name and permission check.
-4. Verify the registry entry with `npm view codex-systemone-router version` and
-   install that exact version in a disposable directory. Only after
+4. Verify the registry entry with `npm view codex-systemone-router@<version> version`
+   and run `npm install codex-systemone-router@<version>` in a disposable
+   directory, using the same `<version>` as in step 3. Only after
    publication and registry verification succeed, tag that same `main` commit
    as `vX.Y.Z` and push the tag. Record the npm URL and commit in release notes.
    Back-merge release fixes or the hotfix into `develop` through review.
