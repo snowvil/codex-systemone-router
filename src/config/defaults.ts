@@ -42,6 +42,7 @@ export const DEFAULT_CONFIG: RouterConfig = Object.freeze({
     timeout_ms: 2000,
   }),
   policy: Object.freeze({
+    strategy: "conservative" as const,
     thresholds: DEFAULT_THRESHOLDS,
     routes: DEFAULT_ROUTES,
     fallback: DEFAULT_FALLBACK,
@@ -53,6 +54,7 @@ export function cloneDefaultConfig(): RouterConfig {
   return {
     backend: { ...DEFAULT_CONFIG.backend },
     policy: {
+      strategy: DEFAULT_CONFIG.policy.strategy,
       thresholds: { ...DEFAULT_CONFIG.policy.thresholds },
       routes: {
         low: { ...DEFAULT_CONFIG.policy.routes.low },

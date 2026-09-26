@@ -21,18 +21,18 @@ User → Codex Main Agent → delegatable subtask
 The router is control-plane software; it MUST NOT solve the delegated task. Decision inference and execution policy are separate concerns.
 
 ## Evidence / design implication
-Exploratory M4 Mac mini benchmark, Ollaya + `kev:latest`: 100 tasks; avg ~194ms, P50 ~173ms, P95 ~234ms, P99 ~249ms; manually labeled exact accuracy 61%; within ±1 ordinal class 100%; no observed ≥2-level errors. Treat Kev primarily as an **ordinal difficulty estimator**, not an infallible four-class oracle. Preserve probabilities; do not directly map argmax to model names.
+Historical exploratory M4 Mac mini benchmark, Ollaya + `kev:latest`: 100 tasks; avg ~194ms, P50 ~173ms, P95 ~234ms, P99 ~249ms; manually labeled exact agreement 61%; within ±1 ordinal class 100%; no observed ≥2-level disagreements. These heuristic labels are not Codex task outcomes or ground truth. Preserve probabilities and declared choice; do not directly map argmax to model names.
 
 ## v0.1 scope
 ### 1. AGENTS.md integration
 Install a concise managed block strongly instructing Codex to:
 1. Delegate suitable independent work to subagents.
-2. Before EVERY subagent spawn, create a self-contained subtask description.
-3. Invoke `codex-systemone-router route`.
-4. Use returned model + reasoning effort.
-5. Give the subagent the same self-contained description.
-6. Do not bypass routing because a task looks trivial.
-7. Use safe fallback if routing fails.
+2. An assigned child does not re-delegate unless its parent explicitly permits it.
+3. Before EVERY spawn, create a self-contained task including all role instructions.
+4. Route the identical UTF-8 task text and pass it unchanged to the child.
+5. Use only a valid exit-0 JSON decision; do not guess a target after errors.
+6. Apply returned settings through the host's actual spawn schema and report unsupported settings.
+7. Do not bypass routing because a task looks trivial.
 
 This is instruction-driven. Never claim AGENTS.md technically intercepts `spawn_agent`.
 
@@ -136,10 +136,17 @@ Map low=0, medium=1, high=2, xhigh=3:
 ```text
 score = P(low)*0 + P(medium)*1 + P(high)*2 + P(xhigh)*3
 ```
-Range 0..3. Pure function + thorough tests. Argmax need not equal final route.
+Range 0..3. Pure function + thorough tests. The configured strategy, not the
+score function, determines the selected logical difficulty.
 
 ## Policy
-Deterministic + configurable. Example only:
+Deterministic + configurable. The default `conservative` strategy selects the
+higher ordinal value of the configured score bucket and backend-declared
+choice, preventing mean-score bucketing from silently lowering a valid high or
+xhigh declaration. Preserve and expose declared-choice/probability-argmax
+disagreement. Also support explicit `ordinal` (legacy score-only) and `argmax`
+(probability maximum, ties choose the lower ordinal class) strategies. Logical
+difficulty remains separate from model/effort mapping. Example only:
 ```yaml
 low:    { model: gpt-6-luna, reasoning_effort: low }
 medium: { model: gpt-6-luna, reasoning_effort: medium }
@@ -149,16 +156,29 @@ xhigh:  { model: gpt-6-astra, reasoning_effort: xhigh }
 Do not scatter model names in code. Score thresholds configurable. Any initial thresholds are heuristics; do not present them as proven calibration.
 
 ## Calibration philosophy
-Manual benchmark labels are heuristic, not true ground truth. Future ground truth should approximate the **minimum model/reasoning level at which Codex reliably completes a task**. Preserve probabilities and score; expose configurable thresholds; provide benchmark/calibration tooling if practical; explicitly document xhigh calibration weakness; avoid accuracy marketing claims.
+Manual benchmark labels are heuristic, not true ground truth. The fixed replay
+is a sanity comparison, not evidence of generalization or improved Codex task
+success. Future ground truth should approximate the **minimum model/reasoning
+level at which Codex reliably completes a task**. Preserve probabilities and
+score; expose configurable thresholds; explicitly document xhigh calibration
+weakness; avoid accuracy marketing claims.
 
 ## Safe fallback
-Backend failure must not block delegation. Provide configurable capable fallback, normally high reasoning. On failure: valid RoutingResult, `fallback:true`, machine-readable reason, stderr warning, clean stdout in JSON mode. Reasons: backend_unavailable, timeout, malformed_response, invalid_probabilities, invalid_configuration. If fallback succeeds, exit 0 is acceptable and must be documented.
+After configuration is valid, expected backend failures must not block
+delegation. Provide a configurable capable fallback, normally high reasoning.
+On backend failure: valid `RoutingResult`, `fallback:true`, machine-readable
+reason, stderr warning, clean stdout in JSON mode. Invalid configuration exits
+2 without a route; unexpected internal errors exit 1 and do not masquerade as
+backend fallback.
 
 ## CLI
 ### route
 Robust args/stdin, stable JSON, human output, no shell interpolation of task text.
 ### doctor
-Check Node≥22, config, backend reachability, model response/schema, policy validity, optional AGENTS integration state.
+Report Node≥22, configuration, policy, actual typed backend response, and
+managed-block presence/absence/malformed state separately. State that Codex
+instruction loading and child runtime settings are unverified; an
+`AGENTS.override.md` or nearer file may change which instructions Codex loads.
 ### install
 Support `--dry-run`; safely add/update managed AGENTS block using:
 ```text
@@ -179,6 +199,7 @@ backend:
   model: kev:latest
   timeout_ms: 2000
 policy:
+  strategy: conservative
   thresholds:
     medium: <calibrated>
     high: <calibrated>

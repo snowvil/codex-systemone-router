@@ -31,6 +31,15 @@ It may use the local backend when configured. Treat its measurements as
 environment-specific evidence and do not turn a representative fixture run
 into a claim about the canonical 100-task benchmark.
 
+The offline historical replay is separate as well:
+
+```bash
+npm run replay
+```
+
+It recomputes the checked-in numeric 100-row CSV without a backend. Its manual
+difficulty labels are not Codex task-success outcomes.
+
 ## Scope and design rules
 
 v0.1 has four boundaries:
@@ -42,7 +51,11 @@ v0.1 has four boundaries:
 
 Keep model names in configuration/policy data rather than scattering them
 through implementation code. Preserve all four probabilities and the score.
-Do not route from argmax alone or treat confidence as the only routing signal.
+The default `conservative` policy takes the higher of the backend-declared
+choice and the configured ordinal score bucket. `ordinal` preserves the legacy
+score-only policy, and `argmax` is an explicit selectable policy with low-first
+tie handling. Do not treat confidence as the only routing signal. Keep
+logical difficulty separate from model/effort mapping.
 Use native `fetch` and filesystem/process APIs where practical; avoid adding a
 framework, database, logging framework, daemon, server, or speculative
 abstraction.

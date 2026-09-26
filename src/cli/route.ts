@@ -1,9 +1,12 @@
 import { OllayaBackend } from "../backend/ollaya.js";
-import { cloneDefaultConfig } from "../config/defaults.js";
-import { loadConfig } from "../config/loader.js";
+import { ConfigValidationError, loadConfig } from "../config/loader.js";
 import type { ConfigOverrides } from "../config/types.js";
-import { isRouterError, type RouterErrorReason } from "../errors/errors.js";
-import { fallbackResult, routeDecision } from "../policy/default-policy.js";
+import { isExpectedBackendError } from "../errors/errors.js";
+import {
+  fallbackResult,
+  PolicyValidationError,
+  routeDecision,
+} from "../policy/default-policy.js";
 import type { ReasoningEffort, RoutingResult } from "../policy/types.js";
 import { parseOptions, stringFlag } from "./options.js";
 
@@ -26,7 +29,7 @@ function effort(value: string | undefined): ReasoningEffort | undefined {
     value === "xhigh"
   )
     return value;
-  throw new Error(
+  throw new ConfigValidationError(
     "Fallback reasoning effort must be low, medium, high, or xhigh",
   );
 }
@@ -77,10 +80,14 @@ async function stdinTask(): Promise<string> {
 
 function jsonResult(result: RoutingResult): Record<string, unknown> {
   return {
+    policy: result.policy,
     difficulty: result.difficulty,
     score: result.score,
     model: result.target.model,
     reasoning_effort: result.target.reasoning_effort,
+    declared_choice: result.declaredChoice,
+    probability_argmax: result.probabilityArgmax,
+    choice_argmax_disagreement: result.choiceArgmaxDisagreement,
     probabilities: result.decision.probabilities,
     backend: result.decision.backend,
     decision_model: result.decision.decisionModel ?? null,
@@ -88,10 +95,6 @@ function jsonResult(result: RoutingResult): Record<string, unknown> {
     fallback: result.fallback,
     reason: result.reason ?? null,
   };
-}
-
-function reasonFor(error: unknown): RouterErrorReason {
-  return isRouterError(error) ? error.reason : "backend_unavailable";
 }
 
 export async function runRoute(args: string[]): Promise<number> {
@@ -118,13 +121,15 @@ export async function runRoute(args: string[]): Promise<number> {
       configPath: stringFlag(flags, "--config"),
       overrides: overrides(flags),
     });
-  } catch {
-    process.stderr.write(
-      "Warning: invalid configuration; using built-in fallback.\n",
-    );
-    result = fallbackResult(cloneDefaultConfig(), "invalid_configuration");
-    emit(result, flags["--json"] === true);
-    return 0;
+  } catch (error) {
+    if (
+      error instanceof ConfigValidationError ||
+      error instanceof PolicyValidationError
+    ) {
+      process.stderr.write("Configuration is invalid or unavailable.\n");
+      return 2;
+    }
+    throw new Error("Configuration could not be loaded");
   }
 
   try {
@@ -135,7 +140,10 @@ export async function runRoute(args: string[]): Promise<number> {
     });
     result = routeDecision(await backend.decide({ task }), config);
   } catch (error) {
-    const reason = reasonFor(error);
+    if (!isExpectedBackendError(error)) {
+      throw new Error("Routing failed internally");
+    }
+    const reason = error.reason;
     process.stderr.write(`Warning: routing used fallback (${reason}).\n`);
     result = fallbackResult(config, reason);
   }
@@ -150,6 +158,7 @@ function emit(result: RoutingResult, json: boolean): void {
   }
   process.stdout.write(
     `Difficulty: ${result.difficulty} (score ${result.score.toFixed(3)})\n` +
+      `Policy: ${result.policy}\n` +
       `Model: ${result.target.model}\n` +
       `Reasoning effort: ${result.target.reasoning_effort}\n` +
       (result.fallback ? `Fallback: ${result.reason}\n` : ""),
