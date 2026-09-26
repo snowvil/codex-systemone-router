@@ -118,10 +118,11 @@ warnings, so this proves the fresh CLI session path, not a clean Desktop UI run.
   files, timers, and logging; replacing YAML with a hand-written parser would
   increase maintenance cost.
 - Local verification used Node v24.19.0 and Node v22.19.0. GitHub Actions run
-  [36219932158](https://github.com/snowvil/codex-systemone-router/actions/runs/36219932158)
-  passed all steps on the verification branch. After that run exposed the
-  runner's Node 20 action deprecation notice, the workflow was upgraded to
-  actions/checkout@v7.0.1 and actions/setup-node@v7.0.0; the new run is pending.
+  [36220136033](https://github.com/snowvil/codex-systemone-router/actions/runs/36220136033)
+  passed all steps on the verification branch with actions/checkout@v7.0.1,
+  actions/setup-node@v7.0.0, and Node 22. GitHub's only remaining annotation
+  says ubuntu-latest will migrate to Ubuntu 26 beginning October 19, 2026; it
+  does not affect this passing run.
 - Global npm link in the user's environment was not run. A fresh ephemeral Codex
   CLI session was run in a disposable project, as described above. A Desktop UI
   session remains a separate proof boundary.
