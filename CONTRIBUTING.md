@@ -132,8 +132,8 @@ Follow Semantic Versioning for the npm package:
   `npm version 0.2.0 --no-git-tag-version`, then review and commit both files.
   Move release notes from `Unreleased` into the dated version section.
 - Never reuse or overwrite a published npm version. Tag a published release
-  `vX.Y.Z`, using the exact version in both package files. The current version
-  is `0.1.1`; establishing this policy does not change it.
+  `vX.Y.Z`, using the exact version in both package files. Read the current
+  version from the repository manifests rather than assuming a fixed value.
 
 ## Publishing to npm (maintainers)
 
