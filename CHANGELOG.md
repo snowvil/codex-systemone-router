@@ -6,6 +6,16 @@ All notable changes to this project are documented here. This file follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-30
+
+### Changed
+
+- Changed the built-in high and fallback targets to `gpt-6.1-sol` while
+  retaining high reasoning effort. Low, medium, and xhigh mappings are
+  unchanged.
+- Documented the limits of the available evidence for effective child model
+  and reasoning-effort settings.
+
 ## [0.2.0] - 2026-09-27
 
 ### Added
@@ -47,6 +57,7 @@ All notable changes to this project are documented here. This file follows
   Updated the configuration example, documentation, managed agent template,
   and routing tests to match.
 
-[Unreleased]: https://github.com/snowvil/codex-systemone-router/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/snowvil/codex-systemone-router/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/snowvil/codex-systemone-router/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/snowvil/codex-systemone-router/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/snowvil/codex-systemone-router/compare/v0.1.0...v0.1.1
