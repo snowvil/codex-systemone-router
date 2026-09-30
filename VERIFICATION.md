@@ -232,8 +232,17 @@ A separate ephemeral Codex CLI parent was started with the disposable project as
 
 No available host surface reports the effective model or reasoning effort for a collaboration child. `spawn_agent` accepts requested overrides; `list_agents` exposes only name/status. Cases A, C, D, and E remain `spawn_requested`, not `runtime_observed`. H05 stays partial/blocked and issue #5 remains open. PR #7 has since been merged into `develop` at `e2d57c7`; this does not establish runtime settings or close issue #5.
 
-## Develop integration and 0.2.0 release candidate (2026-09-27)
+## Develop integration and 0.2.0 release (2026-09-27)
 
 PR #7 was merged into `develop` at merge commit `e2d57c799bf3e5ce5cdbab34bce72d7616297e09`. The independent code review found no blocker in the implemented H01-H04/H06 scope. GitHub did not accept a formal review approval from the PR author; the user explicitly requested the merge. Issue #5 remains open and H05 remains partial/blocked.
 
-The `release/0.2.0` candidate synchronizes `package.json` and `package-lock.json` and updates the existing changelog and migration notes. Checks on the candidate worktree passed: `npm ci`, `npm run format:check`, `npm run typecheck`, `npm test` (93 passed), `npm run build`, `npm run replay`, `npm audit --omit=dev` (0 vulnerabilities), `npm pack --dry-run`, `npm publish --dry-run`, and `git diff --check`. Both npm dry runs reported package version `0.2.0` and 62 files. The release PR, main integration, publication, and tag remain pending.
+The `release/0.2.0` candidate synchronizes `package.json` and `package-lock.json` and updates the existing changelog and migration notes. Checks on the candidate worktree passed: `npm ci`, `npm run format:check`, `npm run typecheck`, `npm test` (93 passed), `npm run build`, `npm run replay`, `npm audit --omit=dev` (0 vulnerabilities), `npm pack --dry-run`, `npm publish --dry-run`, and `git diff --check`. Both npm dry runs reported package version `0.2.0` and 62 files. Since this candidate note, PR #8 merged `release/0.2.0` into `main` at `0f51448`; tag `v0.2.0` points to that commit. On 2026-09-30, the npm registry reported `0.2.0` as the package’s latest version.
+
+## H05 cloud observability preflight (2026-09-30)
+
+The [cloud follow-up](docs/verification/2026-09-30-h05-cloud.md) records the
+`gpt-6.1-sol` default update, installed-tarball provenance, and current CLI
+protocol inspection. The newer CLI explicitly distinguishes configured/requested
+settings from execution telemetry. The packaged live probe returned
+`backend_unavailable` fallback; no child ran and effective settings remain
+unobserved. Issue #5 stays partial/blocked. Earlier evidence above is unchanged.

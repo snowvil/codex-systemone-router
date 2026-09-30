@@ -20,11 +20,11 @@ policy:
       model: gpt-6-luna
       reasoning_effort: medium
     high:
-      model: gpt-6-sol
+      model: gpt-6.1-sol
       reasoning_effort: high
     xhigh:
       model: gpt-6-astra
       reasoning_effort: xhigh
   fallback:
-    model: gpt-6-sol
+    model: gpt-6.1-sol
     reasoning_effort: high

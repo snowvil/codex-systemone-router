@@ -228,9 +228,9 @@ policy:
   routes:
     low: { model: gpt-6-luna, reasoning_effort: low }
     medium: { model: gpt-6-luna, reasoning_effort: medium }
-    high: { model: gpt-6-sol, reasoning_effort: high }
+    high: { model: gpt-6.1-sol, reasoning_effort: high }
     xhigh: { model: gpt-6-astra, reasoning_effort: xhigh }
-  fallback: { model: gpt-6-sol, reasoning_effort: high }
+  fallback: { model: gpt-6.1-sol, reasoning_effort: high }
 ```
 
 `strategy` accepts `conservative`, `ordinal`, or `argmax`. The default

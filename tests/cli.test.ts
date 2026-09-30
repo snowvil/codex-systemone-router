@@ -153,7 +153,7 @@ describe("CLI", () => {
     assert.equal(result.stderr, "");
     const json = JSON.parse(result.stdout) as Record<string, unknown>;
     assert.equal(json.difficulty, "high");
-    assert.equal(json.model, "gpt-6-sol");
+    assert.equal(json.model, "gpt-6.1-sol");
     assert.equal(json.reasoning_effort, "high");
     assert.equal(json.score, 1.95);
     assert.equal(json.fallback, false);
@@ -186,7 +186,7 @@ describe("CLI", () => {
     ]);
     assert.equal(result.code, 0);
     assert.match(result.stdout, /Difficulty: high/);
-    assert.match(result.stdout, /Model: gpt-6-sol/);
+    assert.match(result.stdout, /Model: gpt-6.1-sol/);
   });
 
   it("uses a parseable fallback when the backend is unreachable", async () => {
