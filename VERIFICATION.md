@@ -231,3 +231,12 @@ H05-D's first router attempt timed out and did not spawn a child; only its ident
 A separate ephemeral Codex CLI parent was started with the disposable project as its active directory and an explicit read-only sandbox. A plain launch failed on the existing config parse error; one-shot replacements for `features` failed with schema type errors. The successful launch used the supported `--ignore-user-config` option without changing user config or authentication files. It emitted a model-cache warning about missing `supports_parallel_tool_calls`, then issued two route-only calls. Both returned `fallback:true`, reason `backend_unavailable`, with the safe fallback `gpt-6-sol/high`; no child was requested and no assertions ran. This attempt is `router_only`. The CLI event stream did not provide a direct receipt that the installed managed block was loaded, and this CLI result is not Desktop spawn evidence.
 
 No available host surface reports the effective model or reasoning effort for a collaboration child. `spawn_agent` accepts requested overrides; `list_agents` exposes only name/status. Cases A, C, D, and E remain `spawn_requested`, not `runtime_observed`. H05 stays partial/blocked; issue #5 remains open and PR #7 remains draft.
+
+## H05 cloud observability preflight (2026-09-30)
+
+The [cloud follow-up](docs/verification/2026-09-30-h05-cloud.md) records the
+`gpt-6.1-sol` default update, installed-tarball provenance, and current CLI
+protocol inspection. The newer CLI explicitly distinguishes configured/requested
+settings from execution telemetry. The packaged live probe returned
+`backend_unavailable` fallback; no child ran and effective settings remain
+unobserved. Issue #5 stays partial/blocked. Earlier evidence above is unchanged.

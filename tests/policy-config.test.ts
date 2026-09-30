@@ -82,9 +82,9 @@ describe("deterministic routing policy", () => {
     assert.deepEqual(targets, [
       { model: "gpt-6-luna", reasoning_effort: "low" },
       { model: "gpt-6-luna", reasoning_effort: "medium" },
-      { model: "gpt-6-sol", reasoning_effort: "high" },
+      { model: "gpt-6.1-sol", reasoning_effort: "high" },
       { model: "gpt-6-astra", reasoning_effort: "xhigh" },
-      { model: "gpt-6-sol", reasoning_effort: "high" },
+      { model: "gpt-6.1-sol", reasoning_effort: "high" },
     ]);
     assert.equal(config.policy.strategy, "conservative");
   });
@@ -105,7 +105,7 @@ describe("deterministic routing policy", () => {
       config,
     );
     assert.equal(result.difficulty, "high");
-    assert.equal(result.target.model, "gpt-6-sol");
+    assert.equal(result.target.model, "gpt-6.1-sol");
     assert.equal(result.fallback, false);
     assert.equal(result.score, 2.1);
   });
@@ -313,7 +313,7 @@ it("does not downgrade a backend-declared high choice from the lower ordinal sco
   );
 
   assert.equal(result.difficulty, "high");
-  assert.equal(result.target.model, "gpt-6-sol");
+  assert.equal(result.target.model, "gpt-6.1-sol");
   assert.equal(result.score, 1.5347);
 });
 
