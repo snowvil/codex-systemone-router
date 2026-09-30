@@ -20,7 +20,7 @@ export const DEFAULT_ROUTES = Object.freeze({
     reasoning_effort: "medium" as const,
   }),
   high: Object.freeze({
-    model: "gpt-6-sol",
+    model: "gpt-6.1-sol",
     reasoning_effort: "high" as const,
   }),
   xhigh: Object.freeze({
@@ -30,7 +30,7 @@ export const DEFAULT_ROUTES = Object.freeze({
 });
 
 export const DEFAULT_FALLBACK = Object.freeze({
-  model: "gpt-6-sol",
+  model: "gpt-6.1-sol",
   reasoning_effort: "high" as const,
 });
 
