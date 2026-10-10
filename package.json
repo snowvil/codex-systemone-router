@@ -1,6 +1,6 @@
 {
   "name": "codex-systemone-router",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Local difficulty routing for Codex and Claude Code subagents",
   "type": "module",
   "license": "MIT",
