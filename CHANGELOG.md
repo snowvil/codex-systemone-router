@@ -6,6 +6,35 @@ All notable changes to this project are documented here. This file follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-11
+
+### Added
+
+- Added Claude Code as a routing host. `route --host codex|claude|auto`
+  selects the target vocabulary; `claude` targets are Claude Code `Agent` tool
+  model aliases (`haiku`, `sonnet`, `opus`, `fable`) plus `effort`, with
+  defaults low → `haiku`/low, medium → `sonnet`/medium, high → `opus`/high,
+  xhigh → `opus`/xhigh, and fallback `opus`/high. The JSON result reports
+  `host`.
+- Added host auto-detection: `CODEX_SYSTEMONE_ROUTER_HOST`, then Claude Code's
+  documented `CLAUDECODE=1` subprocess marker, then the Codex default.
+- Added `policy.hosts.<codex|claude>.{routes,fallback}` configuration with
+  matching `CODEX_SYSTEMONE_ROUTER_POLICY_HOSTS_*` environment overrides.
+  `policy.routes` / `policy.fallback` remain a shorthand for `hosts.codex`, so
+  existing configuration files keep working.
+- Added `install --global` / `uninstall --global`, which manage the block in
+  `$CODEX_HOME/AGENTS.md` and `$CLAUDE_CONFIG_DIR/CLAUDE.md` (defaults
+  `~/.codex`, `~/.claude`) in one step, and `--host codex|claude|all` for
+  project or global installs. `doctor` gained `--host`, `--global`, and
+  per-host target reporting.
+
+### Changed
+
+- Rewrote the managed instruction block to be host-neutral: the agent passes
+  its own host name to `route --host`, and the block explains how Codex and
+  Claude Code each apply the returned model and effort. Reinstall to update
+  existing files (`doctor` reports "template update available").
+
 ## [0.2.1] - 2026-09-30
 
 ### Changed
@@ -57,7 +86,8 @@ All notable changes to this project are documented here. This file follows
   Updated the configuration example, documentation, managed agent template,
   and routing tests to match.
 
-[Unreleased]: https://github.com/snowvil/codex-systemone-router/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/snowvil/codex-systemone-router/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/snowvil/codex-systemone-router/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/snowvil/codex-systemone-router/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/snowvil/codex-systemone-router/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/snowvil/codex-systemone-router/compare/v0.1.0...v0.1.1

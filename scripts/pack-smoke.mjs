@@ -22,9 +22,11 @@ let server;
 
 function run(command, args, options = {}) {
   return new Promise((resolveRun, reject) => {
+    // Strip host detection so the smoke test is deterministic wherever it runs.
+    const { CLAUDECODE: _claudecode, ...baseEnv } = process.env;
     const child = spawn(command, args, {
       cwd: options.cwd ?? project,
-      env: { ...process.env, ...(options.env ?? {}) },
+      env: { ...baseEnv, ...(options.env ?? {}) },
       stdio: ["pipe", "pipe", "pipe"],
     });
     let stdout = "";
@@ -188,6 +190,27 @@ try {
     false,
     `${argResult.stdout}${argResult.stderr}`,
   );
+  assert.equal(JSON.parse(argResult.stdout).host, "codex");
+  assert.equal(JSON.parse(argResult.stdout).model, "gpt-6.1-sol");
+  const claudeResult = await run(bin, [
+    "route",
+    "--json",
+    "--host",
+    "claude",
+    "--config",
+    configPath,
+    "packaged claude task",
+  ]);
+  checkRun(claudeResult);
+  assert.equal(JSON.parse(claudeResult.stdout).host, "claude");
+  assert.equal(JSON.parse(claudeResult.stdout).model, "opus");
+  const detectedResult = await run(
+    bin,
+    ["route", "--json", "--config", configPath, "packaged detected task"],
+    { env: { CLAUDECODE: "1" } },
+  );
+  checkRun(detectedResult);
+  assert.equal(JSON.parse(detectedResult.stdout).host, "claude");
   const stdinResult = await run(
     bin,
     ["route", "--stdin", "--json", "--config", configPath],
@@ -266,6 +289,45 @@ try {
   assert(finalText.includes(userStart));
   assert.match(finalText, /Added after install/);
   assert.doesNotMatch(finalText, /codex-systemone-router:start/);
+
+  const globalEnv = {
+    CODEX_HOME: join(temp, "global", "codex"),
+    CLAUDE_CONFIG_DIR: join(temp, "global", "claude"),
+  };
+  const globalInstall = await run(bin, ["install", "--global"], {
+    env: globalEnv,
+  });
+  checkRun(globalInstall);
+  assert.match(
+    await readFile(join(globalEnv.CODEX_HOME, "AGENTS.md"), "utf8"),
+    /codex-systemone-router:start/,
+  );
+  assert.match(
+    await readFile(join(globalEnv.CLAUDE_CONFIG_DIR, "CLAUDE.md"), "utf8"),
+    /--host <host>/,
+  );
+  const globalDoctor = await run(
+    bin,
+    ["doctor", "--config", invalidConfig, "--global"],
+    { env: globalEnv },
+  );
+  checkRun(globalDoctor, 1);
+  assert.match(
+    globalDoctor.stdout,
+    /managed block \[codex\] .*AGENTS\.md: present/,
+  );
+  assert.match(
+    globalDoctor.stdout,
+    /managed block \[claude\] .*CLAUDE\.md: present/,
+  );
+  const globalUninstall = await run(bin, ["uninstall", "--global"], {
+    env: globalEnv,
+  });
+  checkRun(globalUninstall);
+  assert.doesNotMatch(
+    await readFile(join(globalEnv.CLAUDE_CONFIG_DIR, "CLAUDE.md"), "utf8"),
+    /codex-systemone-router:start/,
+  );
 
   console.log(`pack smoke passed: ${packageJson.name}@${packageJson.version}`);
   console.log(`tarball: ${packInfo.filename}`);

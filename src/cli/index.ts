@@ -47,16 +47,31 @@ export async function main(
 const usage = `Usage: codex-systemone-router <command> [options]
 
 Commands:
-  route [--json] [--stdin] [--config PATH] <task>
-  doctor [--config PATH] [--agents-path AGENTS.md]
-  install [--path AGENTS.md] [--dry-run]
-  uninstall [--path AGENTS.md] [--dry-run]
+  route [--json] [--stdin] [--host codex|claude|auto] [--config PATH] <task>
+  doctor [--config PATH] [--host codex|claude|auto] [--agents-path FILE] [--global]
+  install [--global] [--host codex|claude|all] [--path FILE] [--dry-run]
+  uninstall [--global] [--host codex|claude|all] [--path FILE] [--dry-run]
+
+Hosts:
+  codex   Codex subagents (default). Targets from policy.hosts.codex, also
+          written as the policy.routes / policy.fallback shorthand.
+  claude  Claude Code subagents (Agent tool model alias + effort). Targets
+          from policy.hosts.claude. Selected automatically when CLAUDECODE=1.
+  auto    Use CODEX_SYSTEMONE_ROUTER_HOST, then CLAUDECODE detection, then codex.
+
+Install locations:
+  (default)  AGENTS.md in the current directory (read by Codex, and by Claude
+             Code when the project has no CLAUDE.md).
+  --host claude  CLAUDE.md in the current directory.
+  --global   $CODEX_HOME/AGENTS.md (default ~/.codex) and
+             $CLAUDE_CONFIG_DIR/CLAUDE.md (default ~/.claude); --host limits
+             this to one of them.
 
 Route overrides:
   --backend-url URL              Decision endpoint
   --backend-model MODEL          Decision model
   --timeout-ms MS                Timeout (1..120000)
-  --fallback-model MODEL         Safe execution model
+  --fallback-model MODEL         Safe execution model for the selected host
   --fallback-reasoning-effort low|medium|high|xhigh
 
 Use -- before a task beginning with -. Stdin accepts up to 100000 UTF-16 code

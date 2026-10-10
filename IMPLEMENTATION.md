@@ -139,6 +139,20 @@ score = P(low)*0 + P(medium)*1 + P(high)*2 + P(xhigh)*3
 Range 0..3. Pure function + thorough tests. The configured strategy, not the
 score function, determines the selected logical difficulty.
 
+## Hosts (added after v0.2)
+The difficulty estimate is host-independent; only the target vocabulary differs
+per host. Supported hosts are `codex` (default) and `claude` (Claude Code).
+`policy.hosts.<host>` holds `routes` and `fallback`; `policy.routes` /
+`policy.fallback` remain the authoritative shorthand for `codex`. Host
+selection order: `--host` > `CODEX_SYSTEMONE_ROUTER_HOST` > `CLAUDECODE=1`
+(documented Claude Code subprocess marker) > `codex`. Claude Code targets use
+`Agent` tool model aliases (`haiku`, `sonnet`, `opus`, `fable`) or full IDs and
+map `reasoning_effort` to the tool's `effort`. The managed block is identical
+for both hosts; `install --global` writes it to `$CODEX_HOME/AGENTS.md` and
+`$CLAUDE_CONFIG_DIR/CLAUDE.md`. Claude Code reads a project `AGENTS.md` only
+when no `CLAUDE.md` exists in the project tree, so the user-level `CLAUDE.md`
+is the one-install location for Claude Code.
+
 ## Policy
 Deterministic + configurable. The default `conservative` strategy selects the
 higher ordinal value of the configured score bucket and backend-declared

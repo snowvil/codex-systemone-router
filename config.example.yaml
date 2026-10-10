@@ -1,4 +1,4 @@
-# codex-systemone-router v0.1
+# codex-systemone-router
 # The score cutoffs are initial heuristics. Tune them with local benchmark data.
 backend:
   type: ollaya
@@ -12,6 +12,8 @@ policy:
     medium: 0.75
     high: 1.75
     xhigh: 2.55
+  # Codex subagent targets (`route --host codex`, the default). `routes` and
+  # `fallback` here are a shorthand for `hosts.codex.routes` / `hosts.codex.fallback`.
   routes:
     low:
       model: gpt-6-luna
@@ -28,3 +30,24 @@ policy:
   fallback:
     model: gpt-6.1-sol
     reasoning_effort: high
+  hosts:
+    # Claude Code subagent targets (`route --host claude`, selected automatically
+    # when CLAUDECODE=1). Models are Agent tool aliases (haiku, sonnet, opus,
+    # fable) or full model IDs; reasoning_effort maps to the Agent tool's effort.
+    claude:
+      routes:
+        low:
+          model: haiku
+          reasoning_effort: low
+        medium:
+          model: sonnet
+          reasoning_effort: medium
+        high:
+          model: opus
+          reasoning_effort: high
+        xhigh:
+          model: opus
+          reasoning_effort: xhigh
+      fallback:
+        model: opus
+        reasoning_effort: high

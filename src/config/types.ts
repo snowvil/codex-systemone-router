@@ -1,5 +1,6 @@
 import type { Difficulty } from "../decision/types.js";
 import type {
+  Host,
   PolicyThresholds,
   PolicyStrategy,
   RoutingPolicy,
@@ -20,14 +21,23 @@ export interface RouterConfig {
   policy: RoutingPolicy;
 }
 
+/** Partial per-host targets accepted from configuration sources. */
+export interface HostTargetsOverrides {
+  routes?: Partial<Record<Difficulty, Partial<RoutingTarget>>>;
+  fallback?: Partial<RoutingTarget>;
+}
+
 /** Partial configuration accepted from YAML, environment, or CLI overrides. */
 export interface ConfigOverrides {
   backend?: Partial<BackendConfig>;
   policy?: {
     strategy?: PolicyStrategy;
     thresholds?: Partial<PolicyThresholds>;
+    /** Shorthand for `hosts.codex.routes`. */
     routes?: Partial<Record<Difficulty, Partial<RoutingTarget>>>;
+    /** Shorthand for `hosts.codex.fallback`. */
     fallback?: Partial<RoutingTarget>;
+    hosts?: Partial<Record<Host, HostTargetsOverrides>>;
   };
 }
 
