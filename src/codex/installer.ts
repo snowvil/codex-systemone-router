@@ -2,6 +2,7 @@ import {
   copyFileSync,
   readFileSync,
   lstatSync,
+  mkdirSync,
   writeFileSync,
   renameSync,
   unlinkSync,
@@ -9,7 +10,8 @@ import {
 } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import {
   AGENTS_END_MARKER,
@@ -17,12 +19,71 @@ import {
   AGENTS_TEMPLATE,
   MANAGED_AGENTS_BLOCK,
 } from "./agents-template.js";
+import { HOSTS, type Host } from "../policy/types.js";
 
 export interface InstallOptions {
-  /** Path to the AGENTS.md file. Defaults to <cwd>/AGENTS.md. */
+  /** Path to the instruction file. Defaults to <cwd>/AGENTS.md. */
   path?: string;
   /** Calculate the change without writing the file or creating a backup. */
   dryRun?: boolean;
+  /**
+   * Create the parent directory when the file is absent. Used for global
+   * installs where `~/.codex` or `~/.claude` may not exist yet.
+   */
+  createParentDirectory?: boolean;
+}
+
+/** Instruction file name each host reads. */
+export const HOST_INSTRUCTION_FILES: Readonly<Record<Host, string>> =
+  Object.freeze({
+    codex: "AGENTS.md",
+    claude: "CLAUDE.md",
+  });
+
+/** A host paired with the instruction file the installer manages for it. */
+export interface InstructionLocation {
+  host: Host;
+  path: string;
+}
+
+/**
+ * Global instruction files for every host.
+ *
+ * Codex reads `$CODEX_HOME/AGENTS.md` (default `~/.codex/AGENTS.md`). Claude
+ * Code reads the user memory file `CLAUDE.md` from its config directory
+ * (default `~/.claude`, relocated by `CLAUDE_CONFIG_DIR`). Both are read in
+ * every project, so one install here serves every repository.
+ */
+export function globalInstructionLocations(
+  env: Record<string, string | undefined> = process.env,
+  hosts: readonly Host[] = HOSTS,
+): InstructionLocation[] {
+  const home = homedir();
+  const directory = (variable: string, fallback: string): string => {
+    const configured = env[variable];
+    return configured !== undefined && configured.trim().length > 0
+      ? resolve(configured)
+      : join(home, fallback);
+  };
+  const directories: Record<Host, string> = {
+    codex: directory("CODEX_HOME", ".codex"),
+    claude: directory("CLAUDE_CONFIG_DIR", ".claude"),
+  };
+  return hosts.map((host) => ({
+    host,
+    path: join(directories[host], HOST_INSTRUCTION_FILES[host]),
+  }));
+}
+
+/** Project-level instruction files relative to the working directory. */
+export function projectInstructionLocations(
+  hosts: readonly Host[],
+  cwd: string = process.cwd(),
+): InstructionLocation[] {
+  return hosts.map((host) => ({
+    host,
+    path: join(cwd, HOST_INSTRUCTION_FILES[host]),
+  }));
 }
 
 export type InstallerOperation = "install" | "uninstall";
@@ -312,8 +373,12 @@ export function installAgents(
       "created",
       true,
     );
-    if (!options.dryRun)
+    if (!options.dryRun) {
+      if (options.createParentDirectory === true) {
+        mkdirSync(dirname(filePath), { recursive: true, mode: 0o700 });
+      }
       writeFileSync(filePath, nextContent, { encoding: "utf8", flag: "wx" });
+    }
     return result;
   }
 

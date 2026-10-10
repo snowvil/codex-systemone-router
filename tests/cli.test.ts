@@ -31,7 +31,9 @@ async function run(
       env: {
         ...Object.fromEntries(
           Object.entries(process.env).filter(
-            ([key]) => !key.startsWith("CODEX_SYSTEMONE_ROUTER_"),
+            ([key]) =>
+              !key.startsWith("CODEX_SYSTEMONE_ROUTER_") &&
+              key !== "CLAUDECODE",
           ),
         ),
         ...envOverrides,
@@ -153,6 +155,7 @@ describe("CLI", () => {
     assert.equal(result.stderr, "");
     const json = JSON.parse(result.stdout) as Record<string, unknown>;
     assert.equal(json.difficulty, "high");
+    assert.equal(json.host, "codex");
     assert.equal(json.model, "gpt-6.1-sol");
     assert.equal(json.reasoning_effort, "high");
     assert.equal(json.score, 1.95);
@@ -162,6 +165,168 @@ describe("CLI", () => {
     assert.equal(json.probability_argmax, "high");
     assert.equal(json.choice_argmax_disagreement, false);
     assert.equal(json.latency_ms, 210);
+  });
+
+  it("selects Claude Code targets with --host claude", async () => {
+    const result = await run([
+      "route",
+      "--json",
+      "--host",
+      "claude",
+      "--config",
+      configPath,
+      "Investigate duplicate records",
+    ]);
+    assert.equal(result.code, 0);
+    const json = JSON.parse(result.stdout) as Record<string, unknown>;
+    assert.equal(json.host, "claude");
+    assert.equal(json.difficulty, "high");
+    assert.equal(json.model, "opus");
+    assert.equal(json.reasoning_effort, "high");
+    assert.equal(json.fallback, false);
+  });
+
+  it("detects Claude Code from CLAUDECODE=1 and lets the host env pin it", async () => {
+    const detected = await run(
+      ["route", "--json", "--config", configPath, "Review a module"],
+      undefined,
+      { CLAUDECODE: "1" },
+    );
+    assert.equal(detected.code, 0);
+    assert.equal(
+      (JSON.parse(detected.stdout) as { host: string }).host,
+      "claude",
+    );
+
+    const pinned = await run(
+      ["route", "--json", "--config", configPath, "Review a module"],
+      undefined,
+      { CLAUDECODE: "1", CODEX_SYSTEMONE_ROUTER_HOST: "codex" },
+    );
+    assert.equal(pinned.code, 0);
+    assert.equal((JSON.parse(pinned.stdout) as { host: string }).host, "codex");
+
+    const explicit = await run(
+      [
+        "route",
+        "--json",
+        "--host",
+        "claude",
+        "--config",
+        configPath,
+        "Review a module",
+      ],
+      undefined,
+      { CODEX_SYSTEMONE_ROUTER_HOST: "codex" },
+    );
+    assert.equal(explicit.code, 0);
+    assert.equal(
+      (JSON.parse(explicit.stdout) as { host: string }).host,
+      "claude",
+    );
+
+    const auto = await run(
+      [
+        "route",
+        "--json",
+        "--host",
+        "auto",
+        "--config",
+        configPath,
+        "Review a module",
+      ],
+      undefined,
+      { CLAUDECODE: "1" },
+    );
+    assert.equal(auto.code, 0);
+    assert.equal((JSON.parse(auto.stdout) as { host: string }).host, "claude");
+
+    const invalid = await run([
+      "route",
+      "--json",
+      "--host",
+      "gemini",
+      "--config",
+      configPath,
+      "Review a module",
+    ]);
+    assert.equal(invalid.code, 2);
+    assert.equal(invalid.stdout, "");
+  });
+
+  it("applies fallback overrides and per-host config to the selected host", async () => {
+    const hostConfig = join(directory, "hosts.yaml");
+    await writeFile(
+      hostConfig,
+      [
+        "policy:",
+        "  hosts:",
+        "    claude:",
+        "      routes:",
+        "        xhigh: { model: fable, reasoning_effort: xhigh }",
+        "      fallback: { model: sonnet, reasoning_effort: high }",
+        "",
+      ].join("\n"),
+    );
+    const claudeFallback = await run([
+      "route",
+      "--json",
+      "--host",
+      "claude",
+      "--config",
+      hostConfig,
+      "--backend-url",
+      "http://127.0.0.1:1/api/decide",
+      "Review code",
+    ]);
+    assert.equal(claudeFallback.code, 0);
+    const claudeJson = JSON.parse(claudeFallback.stdout) as Record<
+      string,
+      unknown
+    >;
+    assert.equal(claudeJson.fallback, true);
+    assert.equal(claudeJson.host, "claude");
+    assert.equal(claudeJson.model, "sonnet");
+
+    const codexFallback = await run([
+      "route",
+      "--json",
+      "--host",
+      "codex",
+      "--config",
+      hostConfig,
+      "--backend-url",
+      "http://127.0.0.1:1/api/decide",
+      "--fallback-model",
+      "gpt-6-custom",
+      "Review code",
+    ]);
+    assert.equal(codexFallback.code, 0);
+    const codexJson = JSON.parse(codexFallback.stdout) as Record<
+      string,
+      unknown
+    >;
+    assert.equal(codexJson.host, "codex");
+    assert.equal(codexJson.model, "gpt-6-custom");
+
+    const overridden = await run([
+      "route",
+      "--json",
+      "--host",
+      "claude",
+      "--config",
+      hostConfig,
+      "--backend-url",
+      "http://127.0.0.1:1/api/decide",
+      "--fallback-model",
+      "haiku",
+      "Review code",
+    ]);
+    assert.equal(overridden.code, 0);
+    assert.equal(
+      (JSON.parse(overridden.stdout) as { model: string }).model,
+      "haiku",
+    );
   });
 
   it("routes stdin without shell interpolation", async () => {
@@ -186,6 +351,7 @@ describe("CLI", () => {
     ]);
     assert.equal(result.code, 0);
     assert.match(result.stdout, /Difficulty: high/);
+    assert.match(result.stdout, /Host: codex/);
     assert.match(result.stdout, /Model: gpt-6.1-sol/);
   });
 
@@ -215,10 +381,44 @@ describe("CLI", () => {
     assert.match(success.stdout, /PASS runtime: Node/);
     assert.match(success.stdout, /PASS configuration/);
     assert.match(success.stdout, /PASS policy: conservative/);
+    assert.match(success.stdout, /INFO host: codex \(default\)/);
+    assert.match(success.stdout, /INFO targets \[codex\]: low=gpt-6-luna\/low/);
+    assert.match(success.stdout, /INFO targets \[claude\]: low=haiku\/low/);
     assert.match(success.stdout, /PASS backend typed response/);
     assert.match(success.stdout, /INFO managed block: absent/);
     assert.match(success.stdout, /UNVERIFIED Codex instruction loading/);
+    assert.match(success.stdout, /UNVERIFIED Claude Code instruction loading/);
     assert.match(success.stdout, /UNVERIFIED child runtime settings/);
+
+    const detectedHost = await run(
+      ["doctor", "--config", configPath],
+      undefined,
+      { CLAUDECODE: "1" },
+    );
+    assert.equal(detectedHost.code, 0);
+    assert.match(
+      detectedHost.stdout,
+      /INFO host: claude \(detected from CLAUDECODE=1\)/,
+    );
+
+    const globalHome = join(directory, "global-home");
+    const globalDoctor = await run(
+      ["doctor", "--config", configPath, "--global"],
+      undefined,
+      {
+        CODEX_HOME: join(globalHome, "codex"),
+        CLAUDE_CONFIG_DIR: join(globalHome, "claude"),
+      },
+    );
+    assert.equal(globalDoctor.code, 0);
+    assert.match(
+      globalDoctor.stdout,
+      /INFO managed block \[codex\] .*codex[\\/]AGENTS\.md: absent/,
+    );
+    assert.match(
+      globalDoctor.stdout,
+      /INFO managed block \[claude\] .*claude[\\/]CLAUDE\.md: absent/,
+    );
 
     const currentPath = join(directory, "current-template.md");
     const template = await readFile(
@@ -306,7 +506,64 @@ describe("CLI", () => {
     assert.equal(result.code, 0);
     assert.match(result.stdout, /--fallback-model/);
     assert.match(result.stdout, /--timeout-ms/);
+    assert.match(result.stdout, /--host codex\|claude\|auto/);
     assert.equal(result.stderr, "");
+  });
+
+  it("installs the managed block globally for both hosts and uninstalls it", async () => {
+    const home = join(directory, `home-${Math.random()}`);
+    const env = {
+      CODEX_HOME: join(home, "codex-home"),
+      CLAUDE_CONFIG_DIR: join(home, "claude-config"),
+    };
+    const dry = await run(["install", "--global", "--dry-run"], undefined, env);
+    assert.equal(dry.code, 0);
+    assert.match(dry.stdout, /AGENTS\.md \[codex\]: Would be created/);
+    assert.match(dry.stdout, /CLAUDE\.md \[claude\]: Would be created/);
+    await assert.rejects(readFile(join(env.CODEX_HOME, "AGENTS.md")));
+
+    const installed = await run(["install", "--global"], undefined, env);
+    assert.equal(installed.code, 0);
+    assert.match(installed.stdout, /AGENTS\.md \[codex\]: Was created/);
+    assert.match(installed.stdout, /CLAUDE\.md \[claude\]: Was created/);
+    const template = await readFile(
+      new URL("../templates/AGENTS.md", import.meta.url),
+      "utf8",
+    );
+    assert.equal(
+      await readFile(join(env.CODEX_HOME, "AGENTS.md"), "utf8"),
+      template,
+    );
+    assert.equal(
+      await readFile(join(env.CLAUDE_CONFIG_DIR, "CLAUDE.md"), "utf8"),
+      template,
+    );
+
+    const onlyClaude = await run(
+      ["install", "--global", "--host", "claude"],
+      undefined,
+      env,
+    );
+    assert.equal(onlyClaude.code, 0);
+    assert.doesNotMatch(onlyClaude.stdout, /\[codex\]/);
+    assert.match(onlyClaude.stdout, /CLAUDE\.md \[claude\]: Was unchanged/);
+
+    const removed = await run(["uninstall", "--global"], undefined, env);
+    assert.equal(removed.code, 0);
+    assert.equal(await readFile(join(env.CODEX_HOME, "AGENTS.md"), "utf8"), "");
+    assert.equal(
+      await readFile(join(env.CLAUDE_CONFIG_DIR, "CLAUDE.md"), "utf8"),
+      "",
+    );
+
+    const conflicting = await run(
+      ["install", "--global", "--path", "AGENTS.md"],
+      undefined,
+      env,
+    );
+    assert.notEqual(conflicting.code, 0);
+    const badHost = await run(["install", "--host", "gemini"], undefined, env);
+    assert.notEqual(badHost.code, 0);
   });
 
   it("rejects empty input, invalid flags, ambiguous tasks and overlong input", async () => {

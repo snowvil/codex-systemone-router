@@ -1,9 +1,12 @@
 import type { RouterConfig } from "../config/types.js";
 import { normalizeProbabilities, ordinalScore } from "./score.js";
-import { POLICY_STRATEGIES } from "./types.js";
+import { DEFAULT_HOST, HOSTS, POLICY_STRATEGIES } from "./types.js";
 import type {
   Difficulty,
+  Host,
+  HostTargets,
   PolicyStrategy,
+  RouteOptions,
   RoutingPolicy,
   RoutingResult,
 } from "./types.js";
@@ -136,13 +139,73 @@ export function validateRoutingPolicy(
       "policy thresholds must be strictly increasing within 0..3",
     );
   }
+  assertHostTargets(
+    { routes: value.routes, fallback: value.fallback },
+    "policy",
+  );
+  if (value.hosts !== undefined) {
+    if (!isRecord(value.hosts)) {
+      throw new PolicyValidationError("policy.hosts must be an object");
+    }
+    for (const host of Object.keys(value.hosts)) {
+      if (!(HOSTS as readonly string[]).includes(host)) {
+        throw new PolicyValidationError(
+          `policy.hosts contains unknown host ${host}`,
+        );
+      }
+      assertHostTargets(value.hosts[host], `policy.hosts.${host}`);
+    }
+  }
+}
+
+function assertHostTargets(
+  value: unknown,
+  label: string,
+): asserts value is HostTargets {
+  if (!isRecord(value)) {
+    throw new PolicyValidationError(`${label} must be an object`);
+  }
   if (!isRecord(value.routes)) {
-    throw new PolicyValidationError("policy.routes must be an object");
+    throw new PolicyValidationError(`${label}.routes must be an object`);
   }
   for (const difficulty of DIFFICULTIES) {
-    assertTarget(value.routes[difficulty], `policy.routes.${difficulty}`);
+    assertTarget(value.routes[difficulty], `${label}.routes.${difficulty}`);
   }
-  assertTarget(value.fallback, "policy.fallback");
+  assertTarget(value.fallback, `${label}.fallback`);
+}
+
+function assertHost(value: unknown): asserts value is Host {
+  if (
+    typeof value !== "string" ||
+    !(HOSTS as readonly string[]).includes(value)
+  ) {
+    throw new PolicyValidationError(
+      `host must be ${HOSTS.join(" or ")} (received ${String(value)})`,
+    );
+  }
+}
+
+/**
+ * Resolve the target table for a host.
+ *
+ * `policy.routes` / `policy.fallback` are authoritative for the default host
+ * (`codex`), so existing callers that edit them keep working and a policy
+ * without `hosts` still routes Codex. `hosts.codex` mirrors them after
+ * `loadConfig`. Other hosts must be present in `policy.hosts`.
+ */
+export function targetsForHost(
+  policy: RoutingPolicy,
+  host: Host = DEFAULT_HOST,
+): HostTargets {
+  assertHost(host);
+  if (host === DEFAULT_HOST) {
+    return { routes: policy.routes, fallback: policy.fallback };
+  }
+  const explicit = policy.hosts?.[host];
+  if (explicit !== undefined) return explicit;
+  throw new PolicyValidationError(
+    `policy has no targets for host ${host}; add policy.hosts.${host}`,
+  );
 }
 
 /** Select a bucket using score lower bounds, with exact boundaries stable. */
@@ -168,12 +231,15 @@ function policyFromConfig(config: RouterConfig | RoutingPolicy): RoutingPolicy {
 export function routeDecision(
   decision: Decision,
   config: RouterConfig | RoutingPolicy,
+  options: RouteOptions = {},
 ): RoutingResult {
   if (!isRecord(decision)) {
     throw new PolicyValidationError("decision must be an object");
   }
   const policy = policyFromConfig(config);
   validateRoutingPolicy(policy);
+  const host = options.host ?? DEFAULT_HOST;
+  const targets = targetsForHost(policy, host);
   if (!DIFFICULTIES.has(decision.choice)) {
     throw new PolicyValidationError(
       "decision.choice must be low, medium, high, or xhigh",
@@ -198,9 +264,10 @@ export function routeDecision(
 
   return {
     policy: policy.strategy,
+    host,
     difficulty,
     score,
-    target: { ...policy.routes[difficulty] },
+    target: { ...targets.routes[difficulty] },
     decision: normalizedDecision,
     declaredChoice: decision.choice,
     probabilityArgmax,
@@ -213,9 +280,12 @@ export function routeDecision(
 export function fallbackResult(
   config: RouterConfig | RoutingPolicy,
   reason: string,
+  options: RouteOptions = {},
 ): RoutingResult {
   const policy = policyFromConfig(config);
   validateRoutingPolicy(policy);
+  const host = options.host ?? DEFAULT_HOST;
+  const targets = targetsForHost(policy, host);
   if (typeof reason !== "string" || reason.trim().length === 0) {
     throw new PolicyValidationError(
       "fallback reason must be a non-empty string",
@@ -232,9 +302,10 @@ export function fallbackResult(
   const score = ordinalScore(probabilities);
   return {
     policy: policy.strategy,
+    host,
     difficulty: "high",
     score,
-    target: { ...policy.fallback },
+    target: { ...targets.fallback },
     decision: {
       ...fallbackDecision,
       probabilities,
