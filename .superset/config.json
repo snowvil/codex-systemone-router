@@ -1,0 +1,4 @@
+{
+  "setup": ["npm ci", "npm run build"],
+  "teardown": []
+}
