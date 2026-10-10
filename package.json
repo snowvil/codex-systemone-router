@@ -1,7 +1,7 @@
 {
   "name": "codex-systemone-router",
   "version": "0.2.1",
-  "description": "Local difficulty routing for Codex subagents",
+  "description": "Local difficulty routing for Codex and Claude Code subagents",
   "type": "module",
   "license": "MIT",
   "types": "./dist/index.d.ts",
@@ -57,6 +57,7 @@
   },
   "keywords": [
     "codex",
+    "claude-code",
     "ollaya",
     "kev",
     "routing",

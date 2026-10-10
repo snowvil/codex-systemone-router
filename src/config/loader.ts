@@ -8,13 +8,15 @@ import type {
   RouterConfig,
 } from "./types.js";
 import type {
+  Host,
+  HostTargets,
   PolicyRoutes,
   PolicyThresholds,
   ReasoningEffort,
   RoutingPolicy,
   RoutingTarget,
 } from "../policy/types.js";
-import { POLICY_STRATEGIES } from "../policy/types.js";
+import { DEFAULT_HOST, HOSTS, POLICY_STRATEGIES } from "../policy/types.js";
 import { validateRoutingPolicy } from "../policy/default-policy.js";
 
 const CONFIG_ENV = "CODEX_SYSTEMONE_ROUTER_CONFIG";
@@ -29,7 +31,10 @@ const ALLOWED_POLICY_KEYS = new Set([
   "thresholds",
   "routes",
   "fallback",
+  "hosts",
 ]);
+const ALLOWED_HOST_KEYS = new Set(["routes", "fallback"]);
+const ALLOWED_HOSTS = new Set<string>(HOSTS);
 const ALLOWED_THRESHOLD_KEYS = new Set(["medium", "high", "xhigh"]);
 const ALLOWED_TARGET_KEYS = new Set(["model", "reasoning_effort"]);
 const CONFIG_FILE_MAX_BYTES = 1024 * 1024;
@@ -111,6 +116,36 @@ function validatePartialTarget(value: unknown, path: string): void {
   }
 }
 
+function validatePartialRoutes(value: unknown, path: string): void {
+  assertRecord(value, path);
+  for (const key of Object.keys(value)) {
+    if (!(DIFFICULTIES as readonly string[]).includes(key)) {
+      throw new ConfigValidationError(`${path} contains unknown key ${key}`);
+    }
+    validatePartialTarget(value[key], `${path}.${key}`);
+  }
+}
+
+function validatePartialHosts(value: unknown, path: string): void {
+  assertRecord(value, path);
+  for (const host of Object.keys(value)) {
+    if (!ALLOWED_HOSTS.has(host)) {
+      throw new ConfigValidationError(
+        `${path} contains unknown host ${host}; expected ${HOSTS.join(" or ")}`,
+      );
+    }
+    const targets = value[host];
+    assertRecord(targets, `${path}.${host}`);
+    assertAllowedKeys(targets, ALLOWED_HOST_KEYS, `${path}.${host}`);
+    if ("routes" in targets) {
+      validatePartialRoutes(targets.routes, `${path}.${host}.routes`);
+    }
+    if ("fallback" in targets) {
+      validatePartialTarget(targets.fallback, `${path}.${host}.fallback`);
+    }
+  }
+}
+
 /** Validate a partial object before it participates in a precedence merge. */
 export function validateConfigOverrides(
   value: unknown,
@@ -178,23 +213,56 @@ export function validateConfigOverrides(
       }
     }
     if ("routes" in value.policy) {
-      assertRecord(value.policy.routes, `${path}.policy.routes`);
-      for (const key of Object.keys(value.policy.routes)) {
-        if (!(DIFFICULTIES as readonly string[]).includes(key)) {
-          throw new ConfigValidationError(
-            `${path}.policy.routes contains unknown key ${key}`,
-          );
-        }
-        validatePartialTarget(
-          value.policy.routes[key],
-          `${path}.policy.routes.${key}`,
-        );
-      }
+      validatePartialRoutes(value.policy.routes, `${path}.policy.routes`);
     }
     if ("fallback" in value.policy) {
       validatePartialTarget(value.policy.fallback, `${path}.policy.fallback`);
     }
+    if ("hosts" in value.policy) {
+      validatePartialHosts(value.policy.hosts, `${path}.policy.hosts`);
+    }
   }
+}
+
+/**
+ * Fold the `policy.routes` / `policy.fallback` shorthand into
+ * `policy.hosts.codex` so every source merges through one shape. Within a
+ * single source an explicit `hosts.codex` entry wins over the shorthand.
+ */
+function normalizeOverrides(value: ConfigOverrides): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  if (value.backend !== undefined) result.backend = { ...value.backend };
+  if (value.policy === undefined) return result;
+  const { routes, fallback, hosts, ...rest } = value.policy;
+  const policy: Record<string, unknown> = { ...rest };
+  const normalizedHosts: Record<string, unknown> = {};
+  if (routes !== undefined || fallback !== undefined) {
+    normalizedHosts[DEFAULT_HOST] = {
+      ...(routes === undefined ? {} : { routes }),
+      ...(fallback === undefined ? {} : { fallback }),
+    };
+  }
+  if (hosts !== undefined) {
+    for (const [host, targets] of Object.entries(hosts)) {
+      if (targets === undefined) continue;
+      const existing = normalizedHosts[host];
+      normalizedHosts[host] = isRecord(existing)
+        ? mergeRecords(existing, targets as Record<string, unknown>)
+        : targets;
+    }
+  }
+  if (Object.keys(normalizedHosts).length > 0) policy.hosts = normalizedHosts;
+  if (Object.keys(policy).length > 0) result.policy = policy;
+  return result;
+}
+
+function mergeRecords(
+  base: Record<string, unknown>,
+  extra: Record<string, unknown>,
+): Record<string, unknown> {
+  const copy = structuredClone(base);
+  mergeInto(copy, extra);
+  return copy;
 }
 
 function parseConfigFile(path: string): ConfigOverrides {
@@ -318,6 +386,44 @@ function environmentOverrides(
       : { reasoning_effort: fallbackEffort }),
   };
 
+  // Per-host targets: CODEX_SYSTEMONE_ROUTER_POLICY_HOSTS_CLAUDE_ROUTES_HIGH_MODEL
+  const hosts: Record<string, unknown> = {};
+  for (const host of HOSTS) {
+    const hostPrefix = `${PREFIX}POLICY_HOSTS_${host.toUpperCase()}_`;
+    const hostRoutes: Record<string, unknown> = {};
+    for (const difficulty of DIFFICULTIES) {
+      const model = envValue(env, [
+        `${hostPrefix}ROUTES_${difficulty.toUpperCase()}_MODEL`,
+      ]);
+      const effort = envValue(env, [
+        `${hostPrefix}ROUTES_${difficulty.toUpperCase()}_REASONING_EFFORT`,
+      ]);
+      if (model !== undefined || effort !== undefined) {
+        hostRoutes[difficulty] = {
+          ...(model === undefined ? {} : { model }),
+          ...(effort === undefined ? {} : { reasoning_effort: effort }),
+        };
+      }
+    }
+    const hostFallbackModel = envValue(env, [`${hostPrefix}FALLBACK_MODEL`]);
+    const hostFallbackEffort = envValue(env, [
+      `${hostPrefix}FALLBACK_REASONING_EFFORT`,
+    ]);
+    const hostTargets: Record<string, unknown> = {};
+    if (Object.keys(hostRoutes).length > 0) hostTargets.routes = hostRoutes;
+    if (hostFallbackModel !== undefined || hostFallbackEffort !== undefined) {
+      hostTargets.fallback = {
+        ...(hostFallbackModel === undefined
+          ? {}
+          : { model: hostFallbackModel }),
+        ...(hostFallbackEffort === undefined
+          ? {}
+          : { reasoning_effort: hostFallbackEffort }),
+      };
+    }
+    if (Object.keys(hostTargets).length > 0) hosts[host] = hostTargets;
+  }
+
   const strategy = envValue(env, [`${PREFIX}POLICY_STRATEGY`]);
   if (strategy !== undefined) policy.strategy = strategy;
 
@@ -326,6 +432,7 @@ function environmentOverrides(
   if (fallbackModel !== undefined || fallbackEffort !== undefined) {
     policy.fallback = fallback;
   }
+  if (Object.keys(hosts).length > 0) policy.hosts = hosts;
 
   const result: Record<string, unknown> = {};
   if (Object.keys(backend).length > 0) result.backend = backend;
@@ -347,24 +454,51 @@ function mergeInto(
   }
 }
 
+function cloneHostTargets(value: HostTargets): HostTargets {
+  return {
+    routes: {
+      low: { ...value.routes.low },
+      medium: { ...value.routes.medium },
+      high: { ...value.routes.high },
+      xhigh: { ...value.routes.xhigh },
+    },
+    fallback: { ...value.fallback },
+  };
+}
+
 function cloneConfig(value: RouterConfig): RouterConfig {
+  const hosts = {} as Record<Host, HostTargets>;
+  for (const host of HOSTS) {
+    const targets = value.policy.hosts?.[host];
+    if (targets === undefined) {
+      throw new ConfigValidationError(
+        `resolved config policy.hosts.${host} is missing`,
+      );
+    }
+    hosts[host] = cloneHostTargets(targets);
+  }
   return {
     backend: { ...value.backend },
     policy: {
       strategy: value.policy.strategy,
       thresholds: { ...value.policy.thresholds },
-      routes: {
-        low: { ...value.policy.routes.low },
-        medium: { ...value.policy.routes.medium },
-        high: { ...value.policy.routes.high },
-        xhigh: { ...value.policy.routes.xhigh },
-      },
-      fallback: { ...value.policy.fallback },
+      routes: hosts[DEFAULT_HOST].routes,
+      fallback: hosts[DEFAULT_HOST].fallback,
+      hosts,
     },
   };
 }
 
 function assertFinalConfig(value: RouterConfig): RouterConfig {
+  // The shorthand aliases are derived from hosts.codex after the merge.
+  const codex = value.policy.hosts?.[DEFAULT_HOST];
+  if (codex === undefined) {
+    throw new ConfigValidationError(
+      `resolved config policy.hosts.${DEFAULT_HOST} is missing`,
+    );
+  }
+  value.policy.routes = codex.routes;
+  value.policy.fallback = codex.fallback;
   validateConfigOverrides(value, "resolved config");
   if (value.backend.type !== "ollaya") {
     throw new ConfigValidationError(
@@ -436,9 +570,12 @@ export function loadConfig(options: LoadConfigOptions = {}): RouterConfig {
   validateConfigOverrides(cliOverrides, "CLI overrides");
 
   const merged = cloneDefaultConfig() as unknown as Record<string, unknown>;
-  mergeInto(merged, fileOverrides as unknown as Record<string, unknown>);
-  mergeInto(merged, envOverrides as unknown as Record<string, unknown>);
-  mergeInto(merged, cliOverrides as unknown as Record<string, unknown>);
+  // Drop the alias properties so the merge works only through policy.hosts.
+  delete (merged.policy as Record<string, unknown>).routes;
+  delete (merged.policy as Record<string, unknown>).fallback;
+  mergeInto(merged, normalizeOverrides(fileOverrides));
+  mergeInto(merged, normalizeOverrides(envOverrides));
+  mergeInto(merged, normalizeOverrides(cliOverrides));
   return assertFinalConfig(merged as unknown as RouterConfig);
 }
 

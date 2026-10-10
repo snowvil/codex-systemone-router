@@ -7,11 +7,13 @@ import {
   PolicyValidationError,
   routeDecision,
 } from "../policy/default-policy.js";
-import type { ReasoningEffort, RoutingResult } from "../policy/types.js";
+import type { Host, ReasoningEffort, RoutingResult } from "../policy/types.js";
+import { HostResolutionError, resolveHost } from "../host/detect.js";
 import { parseOptions, stringFlag } from "./options.js";
 
 const VALUE_OPTIONS = [
   "--config",
+  "--host",
   "--backend-url",
   "--backend-model",
   "--timeout-ms",
@@ -34,7 +36,10 @@ function effort(value: string | undefined): ReasoningEffort | undefined {
   );
 }
 
-function overrides(flags: Record<string, string | boolean>): ConfigOverrides {
+function overrides(
+  flags: Record<string, string | boolean>,
+  host: Host,
+): ConfigOverrides {
   const url = stringFlag(flags, "--backend-url");
   const model = stringFlag(flags, "--backend-model");
   const timeout = stringFlag(flags, "--timeout-ms");
@@ -53,14 +58,21 @@ function overrides(flags: Record<string, string | boolean>): ConfigOverrides {
           },
         }
       : {}),
+    // Fallback overrides apply to the host whose targets this route uses.
     ...(fallbackModel !== undefined || fallbackEffort !== undefined
       ? {
           policy: {
-            fallback: {
-              ...(fallbackModel === undefined ? {} : { model: fallbackModel }),
-              ...(fallbackEffort === undefined
-                ? {}
-                : { reasoning_effort: fallbackEffort }),
+            hosts: {
+              [host]: {
+                fallback: {
+                  ...(fallbackModel === undefined
+                    ? {}
+                    : { model: fallbackModel }),
+                  ...(fallbackEffort === undefined
+                    ? {}
+                    : { reasoning_effort: fallbackEffort }),
+                },
+              },
             },
           },
         }
@@ -81,6 +93,7 @@ async function stdinTask(): Promise<string> {
 function jsonResult(result: RoutingResult): Record<string, unknown> {
   return {
     policy: result.policy,
+    host: result.host,
     difficulty: result.difficulty,
     score: result.score,
     model: result.target.model,
@@ -116,15 +129,18 @@ export async function runRoute(args: string[]): Promise<number> {
 
   let result: RoutingResult;
   let config;
+  let host: Host;
   try {
+    host = resolveHost(stringFlag(flags, "--host")).host;
     config = await loadConfig({
       configPath: stringFlag(flags, "--config"),
-      overrides: overrides(flags),
+      overrides: overrides(flags, host),
     });
   } catch (error) {
     if (
       error instanceof ConfigValidationError ||
-      error instanceof PolicyValidationError
+      error instanceof PolicyValidationError ||
+      error instanceof HostResolutionError
     ) {
       process.stderr.write("Configuration is invalid or unavailable.\n");
       return 2;
@@ -138,14 +154,14 @@ export async function runRoute(args: string[]): Promise<number> {
       model: config.backend.model,
       timeoutMs: config.backend.timeout_ms,
     });
-    result = routeDecision(await backend.decide({ task }), config);
+    result = routeDecision(await backend.decide({ task }), config, { host });
   } catch (error) {
     if (!isExpectedBackendError(error)) {
       throw new Error("Routing failed internally");
     }
     const reason = error.reason;
     process.stderr.write(`Warning: routing used fallback (${reason}).\n`);
-    result = fallbackResult(config, reason);
+    result = fallbackResult(config, reason, { host });
   }
   emit(result, flags["--json"] === true);
   return 0;
@@ -159,6 +175,7 @@ function emit(result: RoutingResult, json: boolean): void {
   process.stdout.write(
     `Difficulty: ${result.difficulty} (score ${result.score.toFixed(3)})\n` +
       `Policy: ${result.policy}\n` +
+      `Host: ${result.host}\n` +
       `Model: ${result.target.model}\n` +
       `Reasoning effort: ${result.target.reasoning_effort}\n` +
       (result.fallback ? `Fallback: ${result.reason}\n` : ""),

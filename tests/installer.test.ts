@@ -6,7 +6,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -18,7 +18,9 @@ import {
 } from "../src/codex/agents-template.js";
 import {
   ManagedAgentsMarkerError,
+  globalInstructionLocations,
   installAgents,
+  projectInstructionLocations,
   uninstallAgents,
 } from "../src/codex/installer.js";
 
@@ -39,10 +41,55 @@ test("checked-in AGENTS template matches the installed block", () => {
 test("AGENTS template follows repository-local policy without hardcoding branch names", () => {
   assert.ok(
     MANAGED_AGENTS_BLOCK.includes(
-      "Before changing a repository, read its AGENTS.md plus contribution, version, and release guidance; follow that repository's documented branch workflow and do not apply another project's policy.",
+      "Before changing a repository, read its AGENTS.md or CLAUDE.md plus contribution, version, and release guidance; follow that repository's documented branch workflow and do not apply another project's policy.",
     ),
   );
   assert.doesNotMatch(MANAGED_AGENTS_BLOCK, /\bmain\b|\bdevelop\b|feature\//);
+});
+
+test("managed block addresses both hosts without naming concrete models", () => {
+  assert.match(MANAGED_AGENTS_BLOCK, /--host <host>/);
+  assert.match(MANAGED_AGENTS_BLOCK, /`codex` when you are Codex/);
+  assert.match(MANAGED_AGENTS_BLOCK, /`claude` when you are Claude Code/);
+  assert.match(MANAGED_AGENTS_BLOCK, /Agent tool's `model` and `effort`/);
+  assert.doesNotMatch(MANAGED_AGENTS_BLOCK, /gpt-|opus|sonnet|haiku/);
+});
+
+test("global instruction locations follow CODEX_HOME and CLAUDE_CONFIG_DIR", () => {
+  const custom = globalInstructionLocations({
+    CODEX_HOME: "/tmp/codex-home",
+    CLAUDE_CONFIG_DIR: "/tmp/claude-config",
+  });
+  assert.deepEqual(custom, [
+    { host: "codex", path: join("/tmp/codex-home", "AGENTS.md") },
+    { host: "claude", path: join("/tmp/claude-config", "CLAUDE.md") },
+  ]);
+
+  const defaults = globalInstructionLocations({});
+  assert.deepEqual(defaults, [
+    { host: "codex", path: join(homedir(), ".codex", "AGENTS.md") },
+    { host: "claude", path: join(homedir(), ".claude", "CLAUDE.md") },
+  ]);
+
+  const blank = globalInstructionLocations({ CODEX_HOME: "  " }, ["codex"]);
+  assert.deepEqual(blank, [
+    { host: "codex", path: join(homedir(), ".codex", "AGENTS.md") },
+  ]);
+
+  assert.deepEqual(projectInstructionLocations(["claude"], "/work/repo"), [
+    { host: "claude", path: join("/work/repo", "CLAUDE.md") },
+  ]);
+});
+
+test("install can create the parent directory for a global file", () => {
+  const root = mkdtempSync(join(tmpdir(), "codex-systemone-router-global-"));
+  const path = join(root, "nested", "home", "CLAUDE.md");
+
+  assert.throws(() => installAgents({ path }), /ENOENT/);
+  const result = installAgents({ path, createParentDirectory: true });
+
+  assert.equal(result.status, "created");
+  assert.equal(readFileSync(path, "utf8"), AGENTS_TEMPLATE);
 });
 
 test("AGENTS installer creates the managed block when the file is absent", () => {
